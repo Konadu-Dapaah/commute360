@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Commute360 — Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <link rel="stylesheet" href="/css/auth.css" />
+  <link rel="stylesheet" href="/css/routes.css" />
+  <link rel="stylesheet" href="/css/dashboard.css" />
+  <!-- Include configuration script early in the head -->
+  <script src="/config.js"></script>
+  <style>
+    #map {
+      height: 420px !important;
+      width: 100% !important;
+      border-radius: 12px;
+    }
+    .map-panel {
+      min-height: 420px;
+    }
+  </style>
+</head>
+<body>
+  <script src="/nav.js"></script>
+
+  <div class="scene" aria-hidden="true">
+    <div class="scene__grid"></div>
+    <div class="scene__orb scene__orb--a"></div>
+    <div class="scene__orb scene__orb--b"></div>
+    <svg class="route-svg" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice">
+      <path d="M-20 620 C 180 520, 260 680, 420 540 S 620 380, 780 460 S 980 620, 1220 380" />
+      <path d="M-40 280 C 160 360, 300 180, 480 260 S 720 420, 900 300 S 1080 160, 1240 220" opacity="0.45" />
+      <circle cx="420" cy="540" r="5" />
+      <circle cx="780" cy="460" r="5" style="animation-delay: 0.8s" />
+      <circle cx="900" cy="300" r="5" style="animation-delay: 1.4s" />
+    </svg>
+  </div>
+
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="topbar__brand" href="/dashboard.html">
+        <div class="brand-mark__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#0a1628" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 16V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8" />
+            <path d="M4 12h16" />
+            <circle cx="7.5" cy="17.5" r="1.5" />
+            <circle cx="16.5" cy="17.5" r="1.5" />
+            <path d="M8 10h2M14 10h2" />
+          </svg>
+        </div>
+        <span class="topbar__name">Commute<span>360</span></span>
+      </a>
+      <div class="topbar__actions">
+        <a class="ghost-btn" href="/select-route.html">Select route</a>
+        <button type="button" class="ghost-btn" id="logoutBtn">Sign out</button>
+      </div>
+    </header>
+
+    <div class="page-header">
+      <h1>Your dashboard</h1>
+      <p>Track your active booking and see your bus live on the map.</p>
+    </div>
+
+    <div class="dash-layout">
+      <section class="booking-info" id="bookingInfo" aria-live="polite">
+        <div class="loading-state">
+          <div class="loading-state__spinner" aria-hidden="true"></div>
+          Loading your booking…
+        </div>
+      </section>
+
+      <section class="map-panel">
+        <p class="panel-label">Route map</p>
+        <div id="map" hidden></div>
+        <div class="map-placeholder" id="mapPlaceholder">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
+            <line x1="9" y1="3" x2="9" y2="18" />
+            <line x1="15" y1="6" x2="15" y2="21" />
+          </svg>
+          <p>Your route map will appear here once you have an active booking.</p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+  <script>
+    const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+    if (!token) {
+      window.location.href = "/login.html";
+    }
+
+    const apiBase = (window.APP_CONFIG && window.APP_CONFIG.API_BASE) || "";
+    const bookingInfoEl = document.getElementById("bookingInfo");
+    const mapEl = document.getElementById("map");
+    const mapPlaceholder = document.getElementById("mapPlaceholder");
+
+    let map, routeLine, liveBusMarker, signalRConnection;
+
+    function escapeHtml(str) {
+      return String(str ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function renderEmpty() {
+      bookingInfoEl.innerHTML = `
+        <div class="booking-info__empty">
+          <p class="panel-label" style="margin-bottom:0">Active booking</p>
+          <p>No active booking yet. Pick a corridor and lock in your ride.</p>
+          <a class="btn" href="/select-route.html" style="width:auto;display:inline-flex;padding-inline:1.5rem">
+            <span class="btn__label">Select a route</span>
+          </a>
+        </div>
+      `;
+      mapEl.hidden = true;
+      mapPlaceholder.hidden = false;
+    }
+
+    function renderBooking(booking) {
+      const route = booking.route || {};
+      const boarding = booking.boardingStop?.name || "—";
+      const dropOff = booking.dropOffStop?.name || "—";
+      const days = (booking.days || "")
+        .split(",")
+        .map((d) => d.trim())
+        .filter(Boolean);
+
+      bookingInfoEl.innerHTML = `
+        <p class="panel-label">Active booking</p>
+        <div class="booking-info__grid">
+          <div class="booking-info__route">
+            <div class="route-summary">
+              <div class="route-summary__label">Your route</div>
+              <div class="route-summary__path">${escapeHtml(route.origin)} → ${escapeHtml(route.destination)}</div>
+              <div class="status-pill" style="margin-top:0.75rem">${escapeHtml(booking.status || "Confirmed")}</div>
+            </div>
+          </div>
+          <div class="booking-meta">
+            <div class="booking-meta__row">
+              <span class="booking-meta__label">Boarding</span>
+              <span class="booking-meta__value booking-meta__value--accent">${escapeHtml(boarding)}</span>
+            </div>
+            <div class="booking-meta__row">
+              <span class="booking-meta__label">Drop-off</span>
+              <span class="booking-meta__value">${escapeHtml(dropOff)}</span>
+            </div>
+            <div class="booking-meta__row">
+              <span class="booking-meta__label">Riding days</span>
+              <div class="days-pills">
+                ${days.length
+                  ? days.map((d) => `<span>${escapeHtml(d)}</span>`).join("")
+                  : `<span class="booking-meta__value">—</span>`}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function initMap(stops, boardingStopId, dropOffStopId) {
+      mapPlaceholder.hidden = true;
+      mapEl.hidden = false;
+
+      if (map) {
+        map.remove();
+        map = null;
+        routeLine = null;
+        liveBusMarker = null;
+      }
+
+      requestAnimationFrame(() => {
+        map = L.map(mapEl).setView([5.6037, -0.1870], 13);
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: "&copy; OpenStreetMap contributors",
+          maxZoom: 19
+        }).addTo(map);
+
+        const sorted = (stops || [])
+          .slice()
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+        if (sorted.length === 0) {
+          mapPlaceholder.hidden = false;
+          mapPlaceholder.querySelector("p").textContent = "This route has no mapped stops yet.";
+          mapEl.hidden = true;
+          return;
+        }
+
+        sorted.forEach((stop) => {
+          const isBoard = stop.id === boardingStopId;
+          const isDrop = stop.id === dropOffStopId;
+          let label = stop.name;
+          if (isBoard) label = `${stop.name} (Boarding)`;
+          if (isDrop) label = `${stop.name} (Drop-off)`;
+
+          const lat = parseFloat(stop.latitude);
+          const lng = parseFloat(stop.longitude);
+
+          if (!isNaN(lat) && !isNaN(lng)) {
+            const marker = L.marker([lat, lng]).addTo(map);
+            marker.bindPopup(label);
+            if (isBoard || isDrop) marker.openPopup();
+          }
+        });
+
+        const latlngs = sorted
+          .map((s) => [parseFloat(s.latitude), parseFloat(s.longitude)])
+          .filter(([lat, lng]) => !isNaN(lat) && !isNaN(lng));
+
+        if (latlngs.length > 0) {
+          routeLine = L.polyline(latlngs, {
+            color: "#2dd4bf",
+            weight: 4,
+            opacity: 0.9
+          }).addTo(map);
+
+          map.fitBounds(routeLine.getBounds(), { padding: [36, 36] });
+        }
+
+        map.invalidateSize();
+        setTimeout(() => map.invalidateSize(), 300);
+      });
+    }
+
+    async function setupSignalR(routeId) {
+      if (!routeId) return;
+
+      const hubUrl = `${apiBase}/hubs/bus`;
+
+      signalRConnection = new signalR.HubConnectionBuilder()
+        .withUrl(hubUrl, {
+          accessTokenFactory: () => token
+        })
+        .withAutomaticReconnect()
+        .build();
+
+      signalRConnection.on("ReceiveLocation", (busId, latitude, longitude) => {
+        const lat = parseFloat(latitude);
+        const lng = parseFloat(longitude);
+
+        if (isNaN(lat) || isNaN(lng) || !map) return;
+
+        if (liveBusMarker) {
+          liveBusMarker.setLatLng([lat, lng]);
+        } else {
+          const busIcon = L.divIcon({
+            className: 'live-bus-pin',
+            html: `<div style="background-color:#2dd4bf; width:16px; height:16px; border-radius:50%; border:3px solid #0a1628; box-shadow:0 0 10px #2dd4bf;"></div>`,
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+          });
+          liveBusMarker = L.marker([lat, lng], { icon: busIcon })
+            .addTo(map)
+            .bindPopup("Live Bus");
+        }
+      });
+
+      try {
+        await signalRConnection.start();
+        await signalRConnection.invoke("JoinRoute", routeId.toString());
+      } catch (err) {
+        console.error("SignalR Connection Error: ", err);
+        setTimeout(() => setupSignalR(routeId), 5000);
+      }
+    }
+
+    async function loadDashboard() {
+      try {
+        const res = await fetch(`${apiBase}/api/dashboard`, {
+          headers: { Authorization: "Bearer " + token }
+        });
+
+        if (res.status === 401) {
+          localStorage.removeItem("token");
+          window.location.href = "/login.html";
+          return;
+        }
+
+        if (!res.ok) {
+          bookingInfoEl.innerHTML = `<div class="empty-state">Couldn't load dashboard (${res.status}).</div>`;
+          return;
+        }
+
+        const data = await res.json();
+
+        if (data.myBooking) {
+          renderBooking(data.myBooking);
+          initMap(
+            data.myBooking.route?.stops || [],
+            data.myBooking.boardingStopId,
+            data.myBooking.dropOffStopId
+          );
+
+          if (data.myBooking.route?.id) {
+            setupSignalR(data.myBooking.route.id);
+          }
+        } else {
+          renderEmpty();
+        }
+      } catch (err) {
+        console.error(err);
+        bookingInfoEl.innerHTML = `<div class="empty-state">Could not connect. Ensure the API is running.</div>`;
+      }
+    }
+
+    document.getElementById("logoutBtn").addEventListener("click", () => {
+      localStorage.removeItem("token");
+      localStorage.removeItem("authToken");
+      window.location.href = "/login.html";
+    });
+
+    loadDashboard();
+  </script>
+</body>
+</html>

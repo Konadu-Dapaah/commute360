@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SignalR Test — Commute360</title>
+</head>
+<body>
+    <h2>Bus Location Test</h2>
+    <p>Bus ID: <span id="busId">-</span></p>
+    <p>Latitude: <span id="lat">-</span></p>
+    <p>Longitude: <span id="lng">-</span></p>
+    <p id="alert" style="color: red; font-weight: bold;"></p>
+    <button onclick="startSimulation()">Start Simulated Bus</button>
+    <button onclick="stopSimulation()">Stop</button>
+    <script src="/nav.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+    <script>
+        const token = localStorage.getItem("token");
+
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/hubs/bus", {
+                accessTokenFactory: () => token || ""
+            })
+            .withAutomaticReconnect()
+            .build();
+
+        // Updated callback signature: Hub emits (busId, latitude, longitude)
+        connection.on("ReceiveLocation", (busId, lat, lng) => {
+            document.getElementById("busId").innerText = busId ?? "1";
+            document.getElementById("lat").innerText = typeof lat === "number" ? lat.toFixed(5) : lat;
+            document.getElementById("lng").innerText = typeof lng === "number" ? lng.toFixed(5) : lng;
+        });
+
+        connection.on("BusNearStop", (stopName, distance) => {
+            document.getElementById("alert").innerText =
+                `Bus is near your stop! ${stopName} (${distance.toFixed(2)} km)`;
+        });
+
+        connection.start()
+            .then(() => {
+                console.log("SignalR Connected.");
+                return connection.invoke("JoinRoute", "1");
+            })
+            .catch(err => console.error("SignalR connection error:", err));
+
+        // Simulated stop coordinates along the corridor
+        const path = [
+            { lat: 5.6037, lng: -0.1870 },
+            { lat: 5.6100, lng: -0.1800 },
+            { lat: 5.6180, lng: -0.1760 },
+            { lat: 5.6234, lng: -0.1731 },
+            { lat: 5.6350, lng: -0.1620 },
+            { lat: 5.6500, lng: -0.1500 }
+        ];
+
+        let index = 0;
+        let timer = null;
+
+        function startSimulation() {
+            if (timer) return;
+            timer = setInterval(() => {
+                if (index >= path.length) index = 0;
+                const point = path[index];
+                connection.invoke("SendLocation", "1", point.lat, point.lng)
+                    .catch(err => console.error("Error sending location:", err));
+                index++;
+            }, 3000);
+        }
+
+        function stopSimulation() {
+            clearInterval(timer);
+            timer = null;
+        }
+    </script>
+</body>
+</html>

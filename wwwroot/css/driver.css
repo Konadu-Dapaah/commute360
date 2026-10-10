@@ -1,0 +1,99 @@
+/* Driver tracking — extends auth.css tokens & routes.css chrome */
+
+.driver-panel {
+  border-radius: 22px;
+  background: linear-gradient(160deg, rgba(26, 45, 69, 0.72), rgba(10, 22, 40, 0.78));
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--shadow);
+  padding: clamp(1.25rem, 3vw, 1.75rem);
+  animation: riseIn 0.75s ease 0.1s both;
+  max-width: 520px;
+}
+
+.driver-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.35rem;
+}
+
+.driver-actions .btn {
+  flex: 1;
+  min-width: 140px;
+}
+
+.btn--ghost {
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  color: var(--text-muted);
+  box-shadow: none;
+}
+
+.btn--ghost:hover:not(:disabled) {
+  color: var(--text);
+  border-color: rgba(45, 212, 191, 0.35);
+  background: rgba(45, 212, 191, 0.08);
+}
+
+.btn--danger {
+  background: linear-gradient(135deg, #c44a3d 0%, var(--coral) 100%);
+  color: #fff;
+}
+
+.btn--danger:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.tracking-status {
+  margin-top: 1.35rem;
+  padding: 1rem 1.1rem;
+  border-radius: 14px;
+  background: rgba(10, 22, 40, 0.45);
+  border: 1px solid rgba(197, 216, 224, 0.14);
+  min-height: 4.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.tracking-status__label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fog);
+}
+
+.tracking-status__value {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.tracking-status.is-live .tracking-status__value {
+  color: var(--teal-bright);
+}
+
+.tracking-status.is-error .tracking-status__value {
+  color: var(--error);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.tracking-status.is-idle .tracking-status__value {
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 0.95rem;
+}

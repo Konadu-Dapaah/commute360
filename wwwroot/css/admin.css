@@ -1,0 +1,44 @@
+/* Admin — extends auth.css tokens & routes.css chrome */
+
+.admin-layout {
+  display: grid;
+  gap: 1.5rem;
+  animation: riseIn 0.75s ease 0.1s both;
+}
+
+@media (min-width: 860px) {
+  .admin-layout {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
+.admin-panel {
+  border-radius: 22px;
+  background: linear-gradient(160deg, rgba(26, 45, 69, 0.72), rgba(10, 22, 40, 0.78));
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--shadow);
+  padding: clamp(1.25rem, 3vw, 1.75rem);
+}
+
+.admin-panel .field + .field {
+  margin-top: 0.15rem;
+}
+
+.admin-panel .btn {
+  margin-top: 0.5rem;
+}
+
+.admin-fields-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+
+@media (min-width: 520px) {
+  .admin-fields-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.85rem;
+  }
+}

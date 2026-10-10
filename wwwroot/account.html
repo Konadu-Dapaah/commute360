@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Commute360 — Account</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/auth.css" />
+  <link rel="stylesheet" href="/css/routes.css" />
+  <link rel="stylesheet" href="/css/dash.css" />
+  <!-- App config providing Render API_BASE -->
+  <script src="/config.js"></script>
+</head>
+<body>
+  <div class="scene" aria-hidden="true">
+    <div class="scene__grid"></div>
+    <div class="scene__orb scene__orb--a"></div>
+    <div class="scene__orb scene__orb--b"></div>
+  </div>
+
+  <div class="page-shell dash">
+    <header class="topbar">
+      <a class="topbar__brand" href="/index.html"><span class="topbar__name">Commute<span>360</span></span></a>
+      <div class="topbar__actions">
+        <a class="ghost-btn" id="backLink" href="/index.html">← Dashboard</a>
+        <button type="button" class="ghost-btn" id="logoutBtn">Sign out</button>
+      </div>
+    </header>
+
+    <div class="page-header">
+      <h1>My account</h1>
+      <p id="who">Loading…</p>
+    </div>
+
+    <div class="stack">
+      <div class="panel" id="verifyPanel" hidden>
+        <h2>Email verification</h2>
+        <p id="verifyText"></p>
+        <button type="button" class="mini-btn" id="resendBtn">Send verification email</button>
+        <p class="msg" id="verifyMsg" role="status"></p>
+      </div>
+
+      <div class="panel">
+        <h2>Change password</h2>
+        <form class="form" id="pwForm" novalidate>
+          <div><label for="current">Current password</label><input class="input" type="password" id="current" autocomplete="current-password" required /></div>
+          <div><label for="next">New password (at least 8 characters)</label><input class="input" type="password" id="next" autocomplete="new-password" required /></div>
+          <div><label for="again">Repeat new password</label><input class="input" type="password" id="again" autocomplete="new-password" required /></div>
+          <button type="submit" class="cta" id="pwBtn">Change password</button>
+          <p class="msg" id="pwMsg" role="status"></p>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="/auth.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    async function readError(res) {
+      try {
+        const type = res.headers.get("content-type") || "";
+        if (type.includes("json")) {
+          const d = await res.json();
+          if (d.errors) return Object.values(d.errors).flat().join(" ");
+          return d.message || d.title || `Error ${res.status}`;
+        }
+        return (await res.text()) || `Error ${res.status}`;
+      } catch {
+        return `Error ${res.status}`;
+      }
+    }
+
+    function setMsg(el, text, type) {
+      el.textContent = text;
+      el.className = "msg" + (type ? ` is-${type}` : "");
+    }
+
+    (async function init() {
+      try {
+        const user = await Auth.requireRole(["Staff", "Driver", "Admin"]);
+        $("who").textContent = `${user.name} · ${user.email} · ${user.role}`;
+        $("backLink").href = Auth.homeFor(user.role);
+
+        if (!user.emailVerified) {
+          $("verifyPanel").hidden = false;
+          $("verifyText").textContent = "Your email isn't verified yet. We'll send a link to " + user.email + ".";
+        }
+      } catch (err) {
+        if (!["Unauthorized", "Wrong role"].includes(err.message)) $("who").textContent = err.message;
+      }
+    })();
+
+    $("logoutBtn").addEventListener("click", () => Auth.logout());
+
+    $("resendBtn").addEventListener("click", async () => {
+      $("resendBtn").disabled = true;
+      try {
+        const res = await Auth.api("/api/account/resend-verification", { method: "POST" });
+        setMsg($("verifyMsg"), res.ok ? "Verification email sent. Check your inbox." : await readError(res), res.ok ? "success" : "error");
+      } catch (err) {
+        if (err.message !== "Unauthorized") setMsg($("verifyMsg"), "Could not reach the server.", "error");
+      } finally {
+        $("resendBtn").disabled = false;
+      }
+    });
+
+    $("pwForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const msg = $("pwMsg");
+      const current = $("current").value;
+      const next = $("next").value;
+
+      if (next.length < 8) { setMsg(msg, "The new password must be at least 8 characters.", "error"); return; }
+      if (next !== $("again").value) { setMsg(msg, "The new passwords don't match.", "error"); return; }
+
+      $("pwBtn").disabled = true;
+      try {
+        const res = await Auth.api("/api/account/change-password", {
+          method: "POST",
+          body: JSON.stringify({ currentPassword: current, newPassword: next })
+        });
+        if (res.ok) {
+          setMsg(msg, "Password changed.", "success");
+          $("pwForm").reset();
+        } else if (res.status === 429) {
+          setMsg(msg, "Too many attempts. Wait a minute and try again.", "error");
+        } else {
+          setMsg(msg, await readError(res), "error");
+        }
+      } catch (err) {
+        if (err.message !== "Unauthorized") setMsg(msg, "Could not reach the server.", "error");
+      } finally {
+        $("pwBtn").disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

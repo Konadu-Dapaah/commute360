@@ -1,0 +1,394 @@
+/* Route booking page — extends auth.css tokens & atmosphere */
+
+.page-shell {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(1.25rem, 3vw, 2.5rem);
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: clamp(1.5rem, 4vw, 2.5rem);
+  animation: riseIn 0.55s ease both;
+}
+
+.topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.topbar__brand .brand-mark__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+
+.topbar__brand .brand-mark__icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.topbar__name {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.35rem;
+  letter-spacing: -0.03em;
+}
+
+.topbar__name span {
+  color: var(--teal-bright);
+}
+
+.topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ghost-btn {
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.ghost-btn:hover {
+  color: var(--text);
+  border-color: rgba(45, 212, 191, 0.35);
+  background: rgba(45, 212, 191, 0.08);
+}
+
+.page-header {
+  margin-bottom: 1.75rem;
+  animation: riseIn 0.65s ease 0.06s both;
+}
+
+.page-header h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.85rem, 4vw, 2.5rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+}
+
+.page-header p {
+  margin-top: 0.5rem;
+  color: var(--text-muted);
+  font-size: 1.05rem;
+  max-width: 42ch;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  align-items: start;
+  flex: 1;
+}
+
+@media (min-width: 860px) {
+  .layout {
+    grid-template-columns: 1.1fr 0.9fr;
+  }
+
+  .layout.is-idle .booking-panel {
+    opacity: 0.45;
+    pointer-events: none;
+  }
+}
+
+.routes-panel,
+.booking-panel {
+  border-radius: 22px;
+  background: linear-gradient(160deg, rgba(26, 45, 69, 0.72), rgba(10, 22, 40, 0.78));
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--shadow);
+  padding: clamp(1.25rem, 3vw, 1.75rem);
+  animation: riseIn 0.75s ease 0.1s both;
+}
+
+.booking-panel {
+  animation-delay: 0.18s;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.booking-panel.is-ready {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: translateY(0);
+}
+
+.panel-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fog);
+  margin-bottom: 1rem;
+}
+
+.routes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.route-card {
+  width: 100%;
+  text-align: left;
+  padding: 1rem 1.15rem;
+  border-radius: 16px;
+  border: 1px solid rgba(197, 216, 224, 0.14);
+  background: rgba(10, 22, 40, 0.45);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.85rem;
+  align-items: center;
+  animation: riseIn 0.5s ease both;
+}
+
+.route-card:hover {
+  border-color: rgba(45, 212, 191, 0.4);
+  background: rgba(26, 155, 142, 0.12);
+  transform: translateY(-2px);
+}
+
+.route-card.is-selected {
+  border-color: var(--teal-bright);
+  background: rgba(45, 212, 191, 0.14);
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.15);
+}
+
+.route-card__index {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.85rem;
+  background: linear-gradient(135deg, var(--teal) 0%, var(--teal-bright) 100%);
+  color: var(--ink);
+}
+
+.route-card__body {
+  min-width: 0;
+}
+
+.route-card__path {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.route-card__meta {
+  margin-top: 0.2rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.route-card__arrow {
+  color: var(--teal-bright);
+  opacity: 0.7;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.route-card:hover .route-card__arrow,
+.route-card.is-selected .route-card__arrow {
+  opacity: 1;
+  transform: translateX(3px);
+}
+
+.empty-state,
+.loading-state {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  color: var(--text-muted);
+}
+
+.loading-state__spinner {
+  width: 28px;
+  height: 28px;
+  margin: 0 auto 0.85rem;
+  border: 2px solid rgba(45, 212, 191, 0.2);
+  border-top-color: var(--teal-bright);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.booking-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.75rem;
+  min-height: 280px;
+  color: var(--text-muted);
+  padding: 1rem;
+}
+
+.booking-placeholder svg {
+  width: 48px;
+  height: 48px;
+  color: var(--teal-bright);
+  opacity: 0.55;
+}
+
+.booking-form {
+  display: none;
+}
+
+.booking-form.is-visible {
+  display: block;
+  animation: riseIn 0.45s ease both;
+}
+
+.route-summary {
+  padding: 1rem 1.1rem;
+  border-radius: 14px;
+  background: rgba(45, 212, 191, 0.1);
+  border: 1px solid rgba(45, 212, 191, 0.22);
+  margin-bottom: 1.35rem;
+}
+
+.route-summary__label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--teal-bright);
+  margin-bottom: 0.35rem;
+}
+
+.route-summary__path {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.2rem;
+  letter-spacing: -0.02em;
+}
+
+.route-summary__time {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.field select {
+  width: 100%;
+  padding: 0.9rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid rgba(197, 216, 224, 0.18);
+  background: var(--field-bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 1rem;
+  outline: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238aa3b5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  padding-right: 2.5rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.field select:focus {
+  border-color: var(--teal-bright);
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.18);
+}
+
+.field select option {
+  background: #0a1628;
+  color: var(--text);
+}
+
+.days-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.day-chip {
+  position: relative;
+  cursor: pointer;
+}
+
+.day-chip input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.day-chip span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid rgba(197, 216, 224, 0.18);
+  background: var(--field-bg);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.15s ease;
+  user-select: none;
+}
+
+.day-chip:hover span {
+  border-color: rgba(45, 212, 191, 0.35);
+  color: var(--text);
+}
+
+.day-chip input:checked + span {
+  background: linear-gradient(135deg, var(--teal) 0%, var(--teal-bright) 100%);
+  border-color: transparent;
+  color: var(--ink);
+  transform: translateY(-1px);
+}
+
+.day-chip input:focus-visible + span {
+  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.25);
+}
+
+.stops-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+
+@media (min-width: 480px) {
+  .stops-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.85rem;
+  }
+}
