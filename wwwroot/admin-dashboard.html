@@ -3,15 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Commute360 — Admin</title>
+  <title>Commute360 — Admin Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/css/auth.css" />
   <link rel="stylesheet" href="/css/routes.css" />
   <link rel="stylesheet" href="/css/dash.css" />
-  <!-- Configuration script placed in head for early initialization -->
+  
+  <!-- Configuration & Authentication scripts loaded early in HEAD -->
   <script src="/config.js"></script>
+  <script src="/auth.js"></script>
 </head>
 <body>
   <div class="scene" aria-hidden="true">
@@ -31,8 +33,8 @@
     </header>
 
     <div class="page-header">
-      <h1>Admin dashboard</h1>
-      <p id="hello">Loading…</p>
+      <h1>Admin Dashboard</h1>
+      <p id="hello">Loading profile…</p>
     </div>
 
     <div id="sosBanner" hidden></div>
@@ -62,7 +64,7 @@
             <thead>
               <tr>
                 <th>Route</th><th>Departs</th><th>Seats booked</th>
-                <th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th></th>
+                <th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Actions</th>
               </tr>
             </thead>
             <tbody id="overviewBody"></tbody>
@@ -71,11 +73,24 @@
         <p class="msg" id="overviewMsg"></p>
       </div>
 
+      <!-- Enhanced Riders Panel showing Names, Bus Numbers, and Days -->
       <div class="panel" id="ridersPanel" hidden>
-        <h2 id="ridersTitle">Riders</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h2 id="ridersTitle" style="margin: 0;">Riders</h2>
+          <button type="button" class="mini-btn" onclick="$('ridersPanel').hidden = true;">Close ✕</button>
+        </div>
         <div class="scroll">
           <table class="data">
-            <thead><tr><th>Name</th><th>Email</th><th>Boards at</th><th>Gets off at</th><th>Days</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Passenger Name</th>
+                <th>Email</th>
+                <th>Bus Number</th>
+                <th>Boarding Stop</th>
+                <th>Drop-off Stop</th>
+                <th>Days Booked</th>
+              </tr>
+            </thead>
             <tbody id="ridersBody"></tbody>
           </table>
         </div>
@@ -103,7 +118,7 @@
     <section id="tab-users" hidden>
       <div class="panel">
         <h2>Users and roles</h2>
-        <p class="muted">New accounts start as Staff. Promote someone to Driver or Admin here. They must log out and back in for it to apply.</p>
+        <p class="muted">New accounts start as Staff. Promote someone to Driver or Admin here.</p>
         <div class="scroll">
           <table class="data">
             <thead><tr><th>Name</th><th>Email</th><th>Role</th></tr></thead>
@@ -118,14 +133,14 @@
     <section id="tab-reports" hidden>
       <div class="panel">
         <h2>Reports</h2>
-        <div class="form-row" style="margin-bottom:12px">
+        <div class="form-row" style="margin-bottom:12px; display:flex; gap:8px; flex-wrap:wrap;">
           <select class="input" id="reportType">
             <option value="utilisation">Seat utilisation by weekday</option>
             <option value="stops">Busiest stops</option>
             <option value="attendance">Attendance (boardings and skips)</option>
             <option value="riders">All riders</option>
           </select>
-          <select class="input" id="reportDays" title="Only used by the attendance report">
+          <select class="input" id="reportDays">
             <option value="7">Last 7 days</option>
             <option value="30" selected>Last 30 days</option>
             <option value="90">Last 90 days</option>
@@ -167,10 +182,8 @@
     </section>
   </div>
 
-  <script src="/auth.js"></script>
   <script>
     const MANAGE_ROUTES_URL = "/admin-routes.html";
-
     const cfg = window.APP_CONFIG || {};
     const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
     const COLORS = ["#38bdf8", "#a78bfa", "#34d399", "#fbbf24", "#f472b6", "#fb923c"];
@@ -196,9 +209,7 @@
 
     function timeOf(value) {
       const d = new Date(value);
-      return Number.isNaN(d.getTime())
-        ? "—"
-        : d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      return Number.isNaN(d.getTime()) ? "—" : d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
     }
 
     async function readError(res) {
@@ -248,8 +259,7 @@
 
       routes.forEach((r) => {
         const pct = r.capacity ? Math.min(100, Math.round((r.riders / r.capacity) * 100)) : 0;
-        const bar = h("div", { class: "bar" + (pct >= 100 ? " is-full" : "") },
-          h("span", { style: `width:${pct}%` }));
+        const bar = h("div", { class: "bar" + (pct >= 100 ? " is-full" : "") }, h("span", { style: `width:${pct}%` }));
 
         body.append(h("tr", {},
           h("td", { text: `${r.origin} → ${r.destination}` }),
@@ -271,26 +281,116 @@
       try {
         const res = await Auth.api(`/api/summary/routes/${route.id}/riders`);
         if (!res.ok) {
-          body.append(h("tr", {}, h("td", { colspan: "5", text: await readError(res) })));
+          body.append(h("tr", {}, h("td", { colspan: "6", text: await readError(res) })));
           return;
         }
         const riders = await res.json();
         if (riders.length === 0) {
-          body.append(h("tr", {}, h("td", { colspan: "5", class: "muted", text: "Nobody has booked this route yet." })));
+          body.append(h("tr", {}, h("td", { colspan: "6", class: "muted", text: "Nobody has booked this route yet." })));
           return;
         }
-        riders.forEach((p) => body.append(h("tr", {},
-          h("td", { text: p.name }),
-          h("td", { text: p.email }),
-          h("td", { text: p.boardingStop ?? "—" }),
-          h("td", { text: p.dropOffStop ?? "—" }),
-          h("td", { text: (p.days || "").split(",").join(", ") })
-        )));
+
+        riders.forEach((p) => {
+          body.append(h("tr", {},
+            h("td", { text: p.name || "—" }),
+            h("td", { text: p.email || "—" }),
+            h("td", { text: p.busNumber || p.busName || "Bus #" + (route.id || "1") }),
+            h("td", { text: p.boardingStop ?? "—" }),
+            h("td", { text: p.dropOffStop ?? "—" }),
+            h("td", { text: p.days ? p.days.split(",").join(", ") : "—" })
+          ));
+        });
         panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
       } catch (err) {
         if (err.message !== "Unauthorized") console.error(err);
       }
     }
+
+    // ---------- Reports Handling ----------
+    async function loadReport() {
+      const typeEl = $("reportType");
+      const daysEl = $("reportDays");
+      const msg = $("reportMsg");
+      if (!typeEl || !daysEl || !msg) return;
+
+      const type = typeEl.value;
+      const days = daysEl.value;
+      msg.className = "msg";
+      msg.textContent = "Loading report…";
+
+      try {
+        const res = await Auth.api(`/api/reports/${type}?days=${days}`);
+        if (!res.ok) { 
+          msg.className = "msg is-error"; 
+          msg.textContent = await readError(res); 
+          return; 
+        }
+        const report = await res.json();
+
+        $("reportTitle").textContent = report.title || report.Title || "Report Results";
+        
+        const head = $("reportHead");
+        head.innerHTML = "";
+        const headers = report.header || report.Header || [];
+        if (headers.length > 0) {
+          head.append(h("tr", {}, ...headers.map((t) => h("th", { text: t }))));
+        }
+
+        const body = $("reportBody");
+        body.innerHTML = "";
+        
+        const rows = report.rows || report.Rows || [];
+        if (rows.length === 0) {
+          body.append(h("tr", {}, h("td", { colspan: String(headers.length || 1), class: "muted", text: "No data available for this range." })));
+        } else {
+          rows.forEach((row) => body.append(h("tr", {}, ...row.map((c) => h("td", { text: String(c ?? "—") })))));
+        }
+        
+        msg.textContent = "";
+      } catch (err) {
+        if (err.message !== "Unauthorized") { 
+          msg.className = "msg is-error"; 
+          msg.textContent = "Could not load the report from the server."; 
+        }
+      }
+    }
+
+    async function downloadCsv() {
+      const typeEl = $("reportType");
+      const daysEl = $("reportDays");
+      const msg = $("reportMsg");
+      if (!typeEl || !daysEl) return;
+
+      const type = typeEl.value;
+      const days = daysEl.value;
+      try {
+        const res = await Auth.api(`/api/reports/${type}/csv?days=${days}`);
+        if (!res.ok) { 
+          if (msg) { msg.className = "msg is-error"; msg.textContent = await readError(res); }
+          return; 
+        }
+
+        const url = URL.createObjectURL(await res.blob());
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `commute360-${type}.csv`;
+        document.body.append(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        if (err.message !== "Unauthorized" && msg) { 
+          msg.className = "msg is-error"; 
+          msg.textContent = "Download failed."; 
+        }
+      }
+    }
+
+    // Bind report event listeners
+    if ($("reportLoad")) $("reportLoad").addEventListener("click", loadReport);
+    if ($("reportType")) $("reportType").addEventListener("change", loadReport);
+    if ($("reportDays")) $("reportDays").addEventListener("change", loadReport);
+    if ($("reportCsv")) $("reportCsv").addEventListener("click", downloadCsv);
 
     function renderRoutes() {
       const box = $("tab-routes");
@@ -418,9 +518,9 @@
 
       const { AdvancedMarkerElement } = google.maps.marker;
       map = new google.maps.Map($("map"), {
-        center: cfg.DEFAULT_CENTER,
+        center: cfg.DEFAULT_CENTER || { lat: 5.6037, lng: -0.1870 },
         zoom: 12,
-        mapId: cfg.MAP_ID,
+        mapId: cfg.MAP_ID || "DEMO_MAP_ID",
         streetViewControl: false,
         mapTypeControl: false
       });
@@ -428,7 +528,7 @@
       const bounds = new google.maps.LatLngBounds();
       let drawn = false;
       routes.forEach((r, i) => {
-        const stops = r.stops.filter(validStop);
+        const stops = (r.stops || []).filter(validStop);
         if (!stops.length) return;
         const color = COLORS[i % COLORS.length];
 
@@ -532,6 +632,5 @@
       }
     })();
   </script>
-  <script src="/admin-extra.js"></script>
 </body>
 </html>

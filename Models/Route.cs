@@ -14,6 +14,7 @@ public class Route
     public int Capacity { get; set; }
     public int? DriverId { get; set; }
     public User? Driver { get; set; }
+    public int BookedRidersCount { get; set; }
 //takes care of one route having multiple stops
     public ICollection<Stop> Stops { get; set; } = new List<Stop>();
     //takes care of one route having multiple bookings

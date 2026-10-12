@@ -3,181 +3,154 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Commute360 — Admin</title>
+  <title>Commute360 — Manage Routes &amp; Stops</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/css/auth.css" />
   <link rel="stylesheet" href="/css/routes.css" />
-  <link rel="stylesheet" href="/css/admin.css" />
+  <link rel="stylesheet" href="/css/dash.css" />
+  
+  <!-- Configuration & Authentication scripts loaded early in HEAD -->
+  <script src="/config.js"></script>
+  <script src="/auth.js"></script>
+
+  <style>
+    body { overflow-x: hidden; }
+    .page-shell { padding: 16px; max-width: 1200px; margin: 0 auto; }
+    .admin-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+    @media (max-width: 900px) { .admin-layout { grid-template-columns: 1fr; } }
+    .panel { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 16px; padding: 20px; color: #e8eefc; margin-bottom: 20px; }
+    .panel h2 { margin: 0 0 14px; font-size: 16px; letter-spacing: .06em; text-transform: uppercase; }
+    .admin-fields-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+    @media (max-width: 600px) { .admin-fields-row { grid-template-columns: 1fr; } }
+    .field { margin-bottom: 12px; }
+    .field label { display: block; font-size: 13px; opacity: 0.8; margin-bottom: 6px; font-weight: 500; }
+    .input { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,.2); background: rgba(10,22,40,.7); color: #e8eefc; font: inherit; font-size: 14px; box-sizing: border-box; }
+    .message { font-size: 14px; min-height: 20px; margin-top: 10px; }
+    .message.is-error { color: #fca5a5; }
+    .message.is-success { color: #6ee7b7; }
+    .route-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding: 12px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); border-radius: 10px; gap: 10px; }
+  </style>
 </head>
 <body>
   <div class="scene" aria-hidden="true">
     <div class="scene__grid"></div>
     <div class="scene__orb scene__orb--a"></div>
     <div class="scene__orb scene__orb--b"></div>
-    <svg class="route-svg" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice">
-      <path d="M-20 620 C 180 520, 260 680, 420 540 S 620 380, 780 460 S 980 620, 1220 380" />
-      <path d="M-40 280 C 160 360, 300 180, 480 260 S 720 420, 900 300 S 1080 160, 1240 220" opacity="0.45" />
-      <circle cx="420" cy="540" r="5" />
-      <circle cx="780" cy="460" r="5" style="animation-delay: 0.8s" />
-      <circle cx="900" cy="300" r="5" style="animation-delay: 1.4s" />
-    </svg>
   </div>
 
-  <div class="page-shell">
+  <div class="page-shell dash">
     <header class="topbar">
-      <a class="topbar__brand" href="/dashboard.html">
-        <div class="brand-mark__icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="#0a1628" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 16V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8" />
-            <path d="M4 12h16" />
-            <circle cx="7.5" cy="17.5" r="1.5" />
-            <circle cx="16.5" cy="17.5" r="1.5" />
-            <path d="M8 10h2M14 10h2" />
-          </svg>
-        </div>
-        <span class="topbar__name">Commute<span>360</span></span>
+      <a class="topbar__brand" href="/admin-dashboard.html">
+        <span class="topbar__name">Commute<span>360</span> · Admin</span>
       </a>
       <div class="topbar__actions">
-        <a class="ghost-btn" href="/dashboard.html">Dashboard</a>
-        <a class="ghost-btn" href="/routes.html">Routes</a>
+        <!-- Back to Dashboard Option -->
+        <a class="ghost-btn" href="/admin-dashboard.html">← Back to Dashboard</a>
         <button type="button" class="ghost-btn" id="logoutBtn">Sign out</button>
       </div>
     </header>
 
     <div class="page-header">
-      <h1>Admin</h1>
-      <p>Create routes and pin stops so riders can book and track their commute.</p>
+      <h1>Routes &amp; Stops Management</h1>
+      <p>Create routes and pin stops so riders can seamlessly book and track their commutes.</p>
     </div>
 
     <div class="admin-layout">
-      <!-- Create Route Panel -->
-      <section class="admin-panel">
-        <p class="panel-label">Create route</p>
-        <form id="routeForm" novalidate>
-          <div class="admin-fields-row">
-            <div class="field">
-              <label for="origin">Origin</label>
-              <div class="field__control">
-                <input type="text" id="origin" placeholder="e.g. Accra Central" required />
+      <!-- Left Column: Create Route & Manage Existing Routes -->
+      <div>
+        <section class="panel">
+          <h2>Create Route</h2>
+          <form id="routeForm" novalidate>
+            <div class="admin-fields-row">
+              <div class="field">
+                <label for="origin">Origin</label>
+                <input type="text" class="input" id="origin" placeholder="e.g. Accra Central" required />
+              </div>
+              <div class="field">
+                <label for="destination">Destination</label>
+                <input type="text" class="input" id="destination" placeholder="e.g. Tema" required />
               </div>
             </div>
-            <div class="field">
-              <label for="destination">Destination</label>
-              <div class="field__control">
-                <input type="text" id="destination" placeholder="e.g. Tema" required />
+
+            <div class="admin-fields-row">
+              <div class="field">
+                <label for="scheduleTime">Schedule time</label>
+                <input type="datetime-local" class="input" id="scheduleTime" required />
+              </div>
+              <div class="field">
+                <label for="capacity">Capacity</label>
+                <input type="number" class="input" id="capacity" min="1" placeholder="e.g. 40" required />
               </div>
             </div>
+
+            <button type="submit" class="cta" id="routeBtn" style="width: 100%; margin-top: 8px;">Create route</button>
+          </form>
+          <p id="routeMsg" class="message" role="status"></p>
+        </section>
+
+        <section class="panel">
+          <h2>Existing Routes</h2>
+          <div id="routeList" style="margin-top: 10px;">
+            <p class="muted">Loading routes…</p>
           </div>
+        </section>
+      </div>
 
-          <div class="admin-fields-row">
-            <div class="field">
-              <label for="scheduleTime">Schedule time</label>
-              <div class="field__control">
-                <input type="datetime-local" id="scheduleTime" required />
+      <!-- Right Column: Add Stop to Route -->
+      <div>
+        <section class="panel">
+          <h2>Add Stop</h2>
+          <form id="stopForm" novalidate>
+            <div class="admin-fields-row">
+              <div class="field">
+                <label for="routeId">Route ID</label>
+                <input type="number" class="input" id="routeId" min="1" placeholder="Select from left" required />
+              </div>
+              <div class="field">
+                <label for="stopName">Stop name</label>
+                <input type="text" class="input" id="stopName" placeholder="e.g. Kaneshie" required />
               </div>
             </div>
+
             <div class="field">
-              <label for="capacity">Capacity</label>
-              <div class="field__control">
-                <input type="number" id="capacity" min="1" placeholder="e.g. 40" required />
+              <label for="stopSearch">Search for a place (fills coordinates automatically)</label>
+              <input type="text" class="input" id="stopSearch" placeholder="e.g. Accra Mall, Ghana" autocomplete="off" />
+              <div id="searchResults" style="margin-top:8px;"></div>
+              <p id="selectedLocationLabel" style="margin-top:6px; font-size: 0.85rem; opacity: 0.75;"></p>
+            </div>
+
+            <div class="admin-fields-row">
+              <div class="field">
+                <label for="lat">Latitude</label>
+                <input type="number" class="input" id="lat" step="any" placeholder="5.6037" required />
+              </div>
+              <div class="field">
+                <label for="lng">Longitude</label>
+                <input type="number" class="input" id="lng" step="any" placeholder="-0.1870" required />
               </div>
             </div>
-          </div>
 
-          <button type="submit" class="btn" id="routeBtn">
-            <span class="btn__spinner" aria-hidden="true"></span>
-            <span class="btn__label">Create route</span>
-          </button>
-        </form>
-        <p id="routeMsg" class="message" role="status" aria-live="polite"></p>
-      </section>
-
-      <!-- Add Stop Panel -->
-      <section class="admin-panel">
-        <p class="panel-label">Add stop</p>
-        <form id="stopForm" novalidate>
-          <div class="admin-fields-row">
             <div class="field">
-              <label for="routeId">Route ID</label>
-              <div class="field__control">
-                <input type="number" id="routeId" min="1" placeholder="From create route" required />
-              </div>
+              <label for="order">Stop Order</label>
+              <input type="number" class="input" id="order" min="0" placeholder="0" required />
             </div>
-            <div class="field">
-              <label for="stopName">Stop name</label>
-              <div class="field__control">
-                <input type="text" id="stopName" placeholder="e.g. Kaneshie" required />
-              </div>
-            </div>
-          </div>
 
-          <div class="field">
-            <label for="stopSearch">Search for a place (fills coordinates automatically)</label>
-            <div class="field__control">
-              <input type="text" id="stopSearch" placeholder="e.g. Accra Mall, Ghana" autocomplete="off" />
-            </div>
-            <div id="searchResults" style="margin-top:8px;"></div>
-            <p id="selectedLocationLabel" style="margin-top:6px; font-size: 0.85rem; opacity: 0.75;"></p>
-          </div>
-
-          <div class="admin-fields-row">
-            <div class="field">
-              <label for="lat">Latitude</label>
-              <div class="field__control">
-                <input type="number" id="lat" step="any" placeholder="5.6037" required />
-              </div>
-            </div>
-            <div class="field">
-              <label for="lng">Longitude</label>
-              <div class="field__control">
-                <input type="number" id="lng" step="any" placeholder="-0.1870" required />
-              </div>
-            </div>
-          </div>
-
-          <div class="field">
-            <label for="order">Order</label>
-            <div class="field__control">
-              <input type="number" id="order" min="0" placeholder="0" required />
-            </div>
-          </div>
-
-          <button type="submit" class="btn" id="stopBtn">
-            <span class="btn__spinner" aria-hidden="true"></span>
-            <span class="btn__label">Add stop</span>
-          </button>
-        </form>
-        <p id="stopMsg" class="message" role="status" aria-live="polite"></p>
-
-        <hr style="margin: 20px 0; border: 0; border-top: 1px solid rgba(255, 255, 255, 0.1);" />
-
-        <h2>Existing Routes</h2>
-        <div id="routeList" style="margin-top: 10px;"></div>
-      </section>
+            <button type="submit" class="cta" id="stopBtn" style="width: 100%; margin-top: 8px;">Add stop</button>
+          </form>
+          <p id="stopMsg" class="message" role="status"></p>
+        </section>
+      </div>
     </div>
   </div>
 
-  <script src="/nav.js"></script>
   <script>
-    // Relative paths only — this works identically on localhost AND on the real deployed domain.
-    // Never hardcode "http://localhost:5291" here; it silently breaks every request once the page
-    // is opened from anywhere other than your own PC.
-
-    const token = localStorage.getItem("token");
-    if (!token) {
-      window.location.href = "/login.html";
-    }
+    let me = null;
 
     function setMessage(el, text, type) {
       el.textContent = text;
       el.className = "message" + (type ? ` is-${type}` : "");
-      if (type === "error") {
-        el.style.animation = "none";
-        void el.offsetWidth;
-        el.style.animation = "";
-      }
     }
 
     async function parseErrorMessage(res) {
@@ -192,14 +165,11 @@
         if (typeof data === "string") return data;
         return JSON.stringify(data);
       } catch {
-        return `Server error ${res.status} (${res.statusText || "Unauthorized/Forbidden"})`;
+        return `Server error ${res.status}`;
       }
     }
 
-    document.getElementById("logoutBtn").addEventListener("click", () => {
-      localStorage.removeItem("token");
-      window.location.href = "/login.html";
-    });
+    document.getElementById("logoutBtn").addEventListener("click", () => Auth.logout());
 
     // ---------- Place search (Nominatim) — fills lat/lng from a typed name ----------
     const searchInput = document.getElementById("stopSearch");
@@ -209,19 +179,15 @@
     searchInput.addEventListener("input", () => {
       clearTimeout(searchTimeout);
       const query = searchInput.value.trim();
-
       if (query.length < 3) {
         resultsEl.innerHTML = "";
         return;
       }
-
-      // Debounce 500ms so we never exceed Nominatim's 1-request-per-second limit
       searchTimeout = setTimeout(() => searchPlace(query), 500);
     });
 
     async function searchPlace(query) {
       resultsEl.innerHTML = `<p style="opacity:0.7;">Searching…</p>`;
-
       try {
         const res = await fetch(
           `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5`,
@@ -249,7 +215,7 @@
         });
       } catch (err) {
         console.error(err);
-        resultsEl.innerHTML = `<p style="color:#ff6b6b;">Search failed. Try again.</p>`;
+        resultsEl.innerHTML = `<p style="color:#fca5a5;">Search failed. Try again.</p>`;
       }
     }
 
@@ -265,9 +231,7 @@
     // ---------- Load existing routes ----------
     async function loadRouteList() {
       try {
-        const res = await fetch(`/api/routes`, {
-          headers: { "Authorization": "Bearer " + token }
-        });
+        const res = await Auth.api("/api/routes");
         if (!res.ok) return;
 
         const routes = await res.json();
@@ -276,23 +240,27 @@
 
         container.innerHTML = "";
         if (routes.length === 0) {
-          container.innerHTML = "<p style='opacity: 0.7;'>No routes found.</p>";
+          container.innerHTML = "<p class='muted'>No routes found.</p>";
           return;
         }
 
         routes.forEach(r => {
           const div = document.createElement("div");
-          div.style.display = "flex";
-          div.style.justifyContent = "space-between";
-          div.style.alignItems = "center";
-          div.style.marginBottom = "8px";
-          div.style.padding = "8px 12px";
-          div.style.background = "rgba(255, 255, 255, 0.05)";
-          div.style.borderRadius = "6px";
+          div.className = "route-item";
+
+          const stopsText = (r.stops && r.stops.length > 0) 
+            ? `${r.stops.length} stop(s)` 
+            : "No stops yet";
 
           div.innerHTML = `
-            <span><strong>${r.origin} → ${r.destination}</strong> <small>(ID: ${r.id})</small></span>
-            <button onclick="deleteRoute(${r.id})" class="ghost-btn" style="color: #ff6b6b;">Delete</button>
+            <div>
+              <strong>${r.origin} → ${r.destination}</strong><br>
+              <small class="muted">ID: ${r.id} · ${stopsText}</small>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <button type="button" class="mini-btn" onclick="document.getElementById('routeId').value = '${r.id}'; window.scrollTo({top: 0, behavior: 'smooth'});">Add Stop</button>
+              <button type="button" class="mini-btn" style="color: #fca5a5;" onclick="deleteRoute(${r.id})">Delete</button>
+            </div>
           `;
           container.appendChild(div);
         });
@@ -302,12 +270,9 @@
     }
 
     async function deleteRoute(id) {
-      if (!confirm("Delete this route?")) return;
+      if (!confirm("Are you sure you want to delete this route?")) return;
       try {
-        const res = await fetch(`/api/routes/${id}`, {
-          method: "DELETE",
-          headers: { "Authorization": "Bearer " + token }
-        });
+        const res = await Auth.api(`/api/routes/${id}`, { method: "DELETE" });
         if (res.ok) {
           loadRouteList();
         } else {
@@ -335,48 +300,28 @@
       }
 
       const scheduleTime = new Date(scheduleTimeInput).toISOString();
-
       routeBtn.disabled = true;
-      routeBtn.classList.add("is-loading");
       setMessage(routeMsg, "");
 
       try {
-        const res = await fetch(`/api/routes`, {
+        const res = await Auth.api(`/api/routes`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + token
-          },
           body: JSON.stringify({ origin, destination, scheduleTime, capacity })
         });
-
-        if (res.status === 401) {
-          localStorage.removeItem("token");
-          window.location.href = "/login.html";
-          return;
-        }
 
         if (res.ok) {
           const data = await res.json();
           setMessage(routeMsg, `Created route ID: ${data.id}`, "success");
           document.getElementById("routeId").value = data.id;
-
-          document.getElementById("origin").value = "";
-          document.getElementById("destination").value = "";
-          document.getElementById("scheduleTime").value = "";
-          document.getElementById("capacity").value = "";
-
+          document.getElementById("routeForm").reset();
           loadRouteList();
         } else {
-          const errMsg = await parseErrorMessage(res);
-          setMessage(routeMsg, "Failed: " + errMsg, "error");
+          setMessage(routeMsg, "Failed: " + await parseErrorMessage(res), "error");
         }
       } catch (err) {
-        console.error(err);
         setMessage(routeMsg, "Could not connect to the API.", "error");
       } finally {
         routeBtn.disabled = false;
-        routeBtn.classList.remove("is-loading");
       }
     });
 
@@ -393,52 +338,49 @@
       const stopMsg = document.getElementById("stopMsg");
 
       if (!routeId || !name || Number.isNaN(latitude) || Number.isNaN(longitude) || Number.isNaN(order)) {
-        setMessage(stopMsg, "Please fill in all stop fields (use the search box or type coordinates directly).", "error");
+        setMessage(stopMsg, "Please fill in all stop fields correctly.", "error");
         return;
       }
 
       stopBtn.disabled = true;
-      stopBtn.classList.add("is-loading");
       setMessage(stopMsg, "");
 
       try {
-        const res = await fetch(`/api/routes/${routeId}/stops`, {
+        const res = await Auth.api(`/api/routes/${routeId}/stops`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer " + token
-          },
           body: JSON.stringify({ name, latitude, longitude, order })
         });
 
-        if (res.status === 401) {
-          localStorage.removeItem("token");
-          window.location.href = "/login.html";
-          return;
-        }
-
         if (res.ok) {
-          setMessage(stopMsg, "Stop added!", "success");
+          setMessage(stopMsg, "Stop successfully added!", "success");
           document.getElementById("stopName").value = "";
           document.getElementById("stopSearch").value = "";
           document.getElementById("selectedLocationLabel").textContent = "";
           document.getElementById("lat").value = "";
           document.getElementById("lng").value = "";
           document.getElementById("order").value = "";
+          loadRouteList();
         } else {
-          const errMsg = await parseErrorMessage(res);
-          setMessage(stopMsg, "Failed: " + errMsg, "error");
+          setMessage(stopMsg, "Failed: " + await parseErrorMessage(res), "error");
         }
       } catch (err) {
-        console.error(err);
         setMessage(stopMsg, "Could not connect to the API.", "error");
       } finally {
         stopBtn.disabled = false;
-        stopBtn.classList.remove("is-loading");
       }
     });
 
-    loadRouteList();
+    // Initialize on page load
+    (async function init() {
+      try {
+        await Auth.requireRole(["Admin"]);
+        loadRouteList();
+      } catch (err) {
+        if (!["Unauthorized", "Wrong role"].includes(err.message)) {
+          console.error(err);
+        }
+      }
+    })();
   </script>
 </body>
 </html>

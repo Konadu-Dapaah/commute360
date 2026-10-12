@@ -14,4 +14,6 @@ public class Stop
     public double Longitude { get; set; }
     // Order of the stop in the route sequence
     public int Order { get; set; } 
+    public int BoardingCount { get; set; }
+    public int DropOffCount { get; set; }
 }

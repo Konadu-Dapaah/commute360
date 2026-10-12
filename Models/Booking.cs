@@ -17,6 +17,8 @@ public class Booking
 
     public int DropOffStopId { get; set; }
     public Stop? DropOffStop { get; set; }
+    public int BoardingsCount { get; set; }
+    public int SkipsCount { get; set; } 
 
     public string Days { get; set; } = string.Empty;
     public string Status { get; set; } = "Confirmed"; 
