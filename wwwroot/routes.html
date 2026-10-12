@@ -3,14 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Commute360 — Select Boarding & Route</title>
+  <title>Commute360 — Select Your Route</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/auth.css" />
   <link rel="stylesheet" href="css/routes.css" />
-  <link rel="stylesheet" href="css/admin.css" />
-  <!-- Include configuration script early in the head -->
+  <!-- Configuration script providing Render API_BASE -->
   <script src="config.js"></script>
 </head>
 <body>
@@ -18,11 +17,18 @@
     <div class="scene__grid"></div>
     <div class="scene__orb scene__orb--a"></div>
     <div class="scene__orb scene__orb--b"></div>
+    <svg class="route-svg" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice">
+      <path d="M-20 620 C 180 520, 260 680, 420 540 S 620 380, 780 460 S 980 620, 1220 380" />
+      <path d="M-40 280 C 160 360, 300 180, 480 260 S 720 420, 900 300 S 1080 160, 1240 220" opacity="0.45" />
+      <circle cx="420" cy="540" r="5" />
+      <circle cx="780" cy="460" r="5" style="animation-delay: 0.8s" />
+      <circle cx="900" cy="300" r="5" style="animation-delay: 1.4s" />
+    </svg>
   </div>
 
   <div class="page-shell">
     <header class="topbar">
-      <a class="topbar__brand" href="/dashboard.html">
+      <a class="topbar__brand" href="/routes.html">
         <div class="brand-mark__icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="#0a1628" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 16V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8" />
@@ -35,90 +41,161 @@
         <span class="topbar__name">Commute<span>360</span></span>
       </a>
       <div class="topbar__actions">
-        <a class="ghost-btn" href="/dashboard.html">Dashboard</a>
-        <a class="ghost-btn" href="/routes.html">Routes</a>
+        <a class="ghost-btn" href="/staff-dashboard.html">Dashboard</a>
         <button type="button" class="ghost-btn" id="logoutBtn">Sign out</button>
       </div>
     </header>
 
     <div class="page-header">
-      <h1>Book Your Route</h1>
-      <p>Select your route and pick your preferred boarding & drop-off stops.</p>
+      <h1>Select your route</h1>
+      <p>Pick a corridor, choose your stops, and lock in the days you ride.</p>
     </div>
 
-    <div class="admin-layout" style="grid-template-columns: 1fr; max-width: 600px; margin: 0 auto;">
-      <section class="admin-panel">
-        <p class="panel-label">Route Selection</p>
-        <form id="bookingForm" novalidate>
+    <div class="layout is-idle" id="layout">
+      <section class="routes-panel">
+        <p class="panel-label">Available routes</p>
+        <div id="routes" class="routes-list" aria-live="polite">
+          <div class="loading-state" id="routesLoading">
+            <div class="loading-state__spinner" aria-hidden="true"></div>
+            Loading routes…
+          </div>
+        </div>
+      </section>
+
+      <section class="booking-panel" id="bookingPanel">
+        <p class="panel-label">Confirm selection</p>
+
+        <div class="booking-placeholder" id="bookingPlaceholder">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="6" cy="19" r="2" />
+            <circle cx="18" cy="5" r="2" />
+            <path d="M8 18.5 16.5 6.5" />
+          </svg>
+          <p>Select a route to choose boarding &amp; drop-off stops.</p>
+        </div>
+
+        <form class="booking-form" id="bookingForm" novalidate>
+          <div class="route-summary">
+            <div class="route-summary__label">Selected route</div>
+            <div class="route-summary__path" id="routeInfo">—</div>
+            <div class="route-summary__time" id="routeTime"></div>
+          </div>
+
+          <div class="stops-row">
+            <div class="field">
+              <label for="boardingStop">Boarding stop</label>
+              <select id="boardingStop" required></select>
+            </div>
+            <div class="field">
+              <label for="dropOffStop">Drop-off stop</label>
+              <select id="dropOffStop" required></select>
+            </div>
+          </div>
+
           <div class="field">
-            <label for="routeSelect">Select Route</label>
-            <div class="field__control">
-              <select id="routeSelect" required>
-                <option value="">-- Choose a Route --</option>
-              </select>
+            <label>Riding days</label>
+            <div class="days-grid" id="daysGrid">
+              <label class="day-chip"><input type="checkbox" value="Mon" /><span>Mon</span></label>
+              <label class="day-chip"><input type="checkbox" value="Tue" /><span>Tue</span></label>
+              <label class="day-chip"><input type="checkbox" value="Wed" /><span>Wed</span></label>
+              <label class="day-chip"><input type="checkbox" value="Thu" /><span>Thu</span></label>
+              <label class="day-chip"><input type="checkbox" value="Fri" /><span>Fri</span></label>
             </div>
           </div>
 
-          <div class="admin-fields-row">
-            <div class="field">
-              <label for="boardingStop">Boarding Stop</label>
-              <div class="field__control">
-                <select id="boardingStop" required disabled>
-                  <option value="">-- Select Route First --</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="field">
-              <label for="dropOffStop">Drop-off Stop</label>
-              <div class="field__control">
-                <select id="dropOffStop" required disabled>
-                  <option value="">-- Select Route First --</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <button type="submit" class="btn" id="bookBtn">
+          <button type="submit" class="btn" id="submitBtn">
             <span class="btn__spinner" aria-hidden="true"></span>
-            <span class="btn__label">Confirm Booking</span>
+            <span class="btn__label">Confirm booking</span>
           </button>
+
+          <p id="message" class="message" role="status" aria-live="polite"></p>
         </form>
-        <p id="bookingMsg" class="message" role="status" aria-live="polite"></p>
       </section>
     </div>
   </div>
-
   <script src="nav.js"></script>
   <script>
-    const token = localStorage.getItem("authToken") || localStorage.getItem("token") || localStorage.getItem("jwt");
-
+    const token = localStorage.getItem("token") || localStorage.getItem("authToken");
     if (!token) {
       window.location.href = "/login.html";
     }
 
-    const apiBase = (window.APP_CONFIG && window.APP_CONFIG.API_BASE) || "";
-    let routesList = [];
+    let selectedRoute = null;
 
-    function setMessage(el, text, type) {
-      el.textContent = text;
-      el.className = "message" + (type ? ` is-${type}` : "");
+    const routesEl = document.getElementById("routes");
+    const layoutEl = document.getElementById("layout");
+    const bookingForm = document.getElementById("bookingForm");
+    const bookingPlaceholder = document.getElementById("bookingPlaceholder");
+    const bookingPanel = document.getElementById("bookingPanel");
+    const submitBtn = document.getElementById("submitBtn");
+    const messageEl = document.getElementById("message");
+    const boardingSelect = document.getElementById("boardingStop");
+    const dropOffSelect = document.getElementById("dropOffStop");
+
+    const apiBase = (window.APP_CONFIG && window.APP_CONFIG.API_BASE) || "";
+
+    function setMessage(text, type) {
+      messageEl.textContent = text;
+      messageEl.className = "message" + (type ? ` is-${type}` : "");
       if (type === "error") {
-        el.style.animation = "none";
-        void el.offsetWidth;
-        el.style.animation = "";
+        messageEl.style.animation = "none";
+        void messageEl.offsetWidth;
+        messageEl.style.animation = "";
       }
     }
 
-    function clearAuthAndRedirect() {
-      localStorage.removeItem("authToken");
-      localStorage.removeItem("token");
-      localStorage.removeItem("userRole");
-      localStorage.removeItem("role");
-      window.location.href = "/login.html";
+    function formatSchedule(value) {
+      if (!value) return "";
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return String(value);
+      return d.toLocaleString(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit"
+      });
     }
 
-    document.getElementById("logoutBtn").addEventListener("click", clearAuthAndRedirect);
+    function selectRoute(route, cardEl) {
+      selectedRoute = route;
+
+      document.querySelectorAll(".route-card").forEach((el) => el.classList.remove("is-selected"));
+      if (cardEl) cardEl.classList.add("is-selected");
+
+      document.getElementById("routeInfo").textContent =
+        `${route.origin} → ${route.destination}`;
+      document.getElementById("routeTime").textContent =
+        formatSchedule(route.scheduleTime);
+
+      boardingSelect.innerHTML = "";
+      dropOffSelect.innerHTML = "";
+
+      const stops = (route.stops || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+      if (stops.length === 0) {
+        boardingSelect.add(new Option("No stops available", ""));
+        dropOffSelect.add(new Option("No stops available", ""));
+      } else {
+        stops.forEach((stop) => {
+          boardingSelect.add(new Option(stop.name, stop.id));
+          dropOffSelect.add(new Option(stop.name, stop.id));
+        });
+        if (stops.length > 1) {
+          dropOffSelect.selectedIndex = stops.length - 1;
+        }
+      }
+
+      document.querySelectorAll("#daysGrid input").forEach((cb) => {
+        cb.checked = false;
+      });
+
+      bookingPlaceholder.style.display = "none";
+      bookingForm.classList.add("is-visible");
+      bookingPanel.classList.add("is-ready");
+      layoutEl.classList.remove("is-idle");
+      setMessage("");
+    }
 
     async function loadRoutes() {
       try {
@@ -127,108 +204,79 @@
         });
 
         if (res.status === 401) {
-          clearAuthAndRedirect();
+          localStorage.removeItem("token");
+          window.location.href = "/login.html";
           return;
         }
 
-        routesList = await res.json();
-        const routeSelect = document.getElementById("routeSelect");
-        routeSelect.innerHTML = '<option value="">-- Choose a Route --</option>';
+        if (!res.ok) {
+          routesEl.innerHTML = `<div class="empty-state">Couldn’t load routes (${res.status}).</div>`;
+          return;
+        }
 
-        routesList.forEach(r => {
-          const routeId = r.id || r.Id;
-          const origin = r.origin || r.Origin || "";
-          const destination = r.destination || r.Destination || "";
+        const routes = await res.json();
+        routesEl.innerHTML = "";
 
-          const opt = document.createElement("option");
-          opt.value = routeId;
-          opt.textContent = `${origin} ➔ ${destination}`;
-          routeSelect.appendChild(opt);
+        if (!Array.isArray(routes) || routes.length === 0) {
+          routesEl.innerHTML = `<div class="empty-state">No routes available yet. Check back soon.</div>`;
+          return;
+        }
+
+        routes.forEach((route, i) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "route-card";
+          btn.style.animationDelay = `${0.05 * i}s`;
+          btn.innerHTML = `
+            <span class="route-card__index">${String(i + 1).padStart(2, "0")}</span>
+            <span class="route-card__body">
+              <span class="route-card__path">${route.origin} → ${route.destination}</span>
+              <span class="route-card__meta">${formatSchedule(route.scheduleTime)}${route.capacity ? ` · ${route.capacity} seats` : ""}</span>
+            </span>
+            <span class="route-card__arrow" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </span>
+          `;
+          btn.addEventListener("click", () => selectRoute(route, btn));
+          routesEl.appendChild(btn);
         });
       } catch (err) {
-        console.error("Failed to load routes:", err);
+        console.error(err);
+        routesEl.innerHTML = `<div class="empty-state">Could not connect. Ensure the API is running.</div>`;
       }
     }
 
-    document.getElementById("routeSelect").addEventListener("change", (e) => {
-      const routeId = parseInt(e.target.value, 10);
-      const boardingSelect = document.getElementById("boardingStop");
-      const dropOffSelect = document.getElementById("dropOffStop");
-
-      if (!routeId) {
-        boardingSelect.disabled = true;
-        dropOffSelect.disabled = true;
-        boardingSelect.innerHTML = '<option value="">-- Select Route First --</option>';
-        dropOffSelect.innerHTML = '<option value="">-- Select Route First --</option>';
-        return;
-      }
-
-      const selectedRoute = routesList.find(r => (r.id || r.Id) === routeId);
-      const stops = selectedRoute ? (selectedRoute.stops || selectedRoute.Stops) : null;
-
-      if (!selectedRoute || !stops || stops.length === 0) {
-        boardingSelect.disabled = true;
-        dropOffSelect.disabled = true;
-        boardingSelect.innerHTML = '<option value="">-- No Stops Available --</option>';
-        dropOffSelect.innerHTML = '<option value="">-- No Stops Available --</option>';
-        return;
-      }
-
-      boardingSelect.innerHTML = '<option value="">-- Select Boarding Stop --</option>';
-      dropOffSelect.innerHTML = '<option value="">-- Select Drop-off Stop --</option>';
-
-      const sortedStops = [...stops].sort((a, b) => (a.order ?? a.Order) - (b.order ?? b.Order));
-
-      sortedStops.forEach(s => {
-        const stopId = s.id || s.Id;
-        const stopName = s.name || s.Name;
-        const stopOrder = (s.order ?? s.Order ?? 0) + 1;
-
-        const bOpt = document.createElement("option");
-        bOpt.value = stopId;
-        bOpt.textContent = `${stopOrder}. ${stopName}`;
-        boardingSelect.appendChild(bOpt);
-
-        const dOpt = document.createElement("option");
-        dOpt.value = stopId;
-        dOpt.textContent = `${stopOrder}. ${stopName}`;
-        dropOffSelect.appendChild(dOpt);
-      });
-
-      boardingSelect.disabled = false;
-      dropOffSelect.disabled = false;
-    });
-
-    document.getElementById("bookingForm").addEventListener("submit", async (e) => {
+    bookingForm.addEventListener("submit", async (e) => {
       e.preventDefault();
+      if (!selectedRoute) {
+        setMessage("Please select a route first.", "error");
+        return;
+      }
 
-      const routeId = parseInt(document.getElementById("routeSelect").value, 10);
-      const boardingStopId = parseInt(document.getElementById("boardingStop").value, 10);
-      const dropOffStopId = parseInt(document.getElementById("dropOffStop").value, 10);
+      const boardingStopId = parseInt(boardingSelect.value, 10);
+      const dropOffStopId = parseInt(dropOffSelect.value, 10);
 
-      const bookBtn = document.getElementById("bookBtn");
-      const bookingMsg = document.getElementById("bookingMsg");
+      const days = Array.from(document.querySelectorAll("#daysGrid input:checked"))
+        .map((cb) => cb.value);
 
-      if (!routeId || !boardingStopId || !dropOffStopId) {
-        setMessage(bookingMsg, "Please select route, boarding stop, and drop-off stop.", "error");
+      if (!boardingStopId || !dropOffStopId) {
+        setMessage("Please choose boarding and drop-off stops.", "error");
         return;
       }
 
       if (boardingStopId === dropOffStopId) {
-        setMessage(bookingMsg, "Boarding and drop-off stops cannot be the same.", "error");
+        setMessage("Boarding and drop-off must be different stops.", "error");
         return;
       }
 
-      const payload = {
-        routeId: routeId,
-        boardingStopId: boardingStopId,
-        dropOffStopId: dropOffStopId,
-        days: []
-      };
+      if (days.length === 0) {
+        setMessage("Pick at least one riding day.", "error");
+        return;
+      }
 
-      bookBtn.disabled = true;
-      bookBtn.classList.add("is-loading");
-      setMessage(bookingMsg, "");
+      submitBtn.disabled = true;
+      submitBtn.classList.add("is-loading");
+      setMessage("");
 
       try {
         const res = await fetch(`${apiBase}/api/bookings`, {
@@ -237,31 +285,50 @@
             "Content-Type": "application/json",
             Authorization: "Bearer " + token
           },
-          body: JSON.stringify(payload)
+          body: JSON.stringify({
+            routeId: selectedRoute.id,
+            boardingStopId,
+            dropOffStopId,
+            days
+          })
         });
 
         if (res.status === 401) {
-          clearAuthAndRedirect();
+          localStorage.removeItem("token");
+          window.location.href = "/login.html";
           return;
         }
 
-        const data = await res.json().catch(() => ({}));
-
         if (res.ok) {
-          setMessage(bookingMsg, "Booking confirmed! Redirecting to dashboard...", "success");
+          setMessage("Booking confirmed! Redirecting...", "success");
           setTimeout(() => {
-            window.location.href = "/dashboard.html";
-          }, 1200);
+            window.location.href = "/staff-dashboard.html";
+          }, 1000);
         } else {
-          setMessage(bookingMsg, "Failed: " + JSON.stringify(data.errors || data.message || data), "error");
+          let errorMessage = "Booking failed.";
+          const contentType = res.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const data = await res.json();
+            errorMessage = data.message || data.title || (typeof data === "string" ? data : errorMessage);
+          } else {
+            const text = await res.text();
+            errorMessage = text || `Server returned status ${res.status}`;
+          }
+          setMessage(errorMessage, "error");
         }
       } catch (err) {
         console.error(err);
-        setMessage(bookingMsg, "Could not connect to the server.", "error");
+        setMessage("Could not connect. Ensure the API is running.", "error");
       } finally {
-        bookBtn.disabled = false;
-        bookBtn.classList.remove("is-loading");
+        submitBtn.disabled = false;
+        submitBtn.classList.remove("is-loading");
       }
+    });
+
+    document.getElementById("logoutBtn").addEventListener("click", () => {
+      localStorage.removeItem("token");
+      localStorage.removeItem("authToken");
+      window.location.href = "/login.html";
     });
 
     loadRoutes();
