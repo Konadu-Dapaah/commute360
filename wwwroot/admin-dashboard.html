@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Commute360 — Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/auth.css" />
+  <link rel="stylesheet" href="/css/routes.css" />
+  <link rel="stylesheet" href="/css/dash.css" />
+  <!-- Configuration script placed in head for early initialization -->
+  <script src="/config.js"></script>
+</head>
+<body>
+  <div class="scene" aria-hidden="true">
+    <div class="scene__grid"></div>
+    <div class="scene__orb scene__orb--a"></div>
+    <div class="scene__orb scene__orb--b"></div>
+  </div>
+
+  <div class="page-shell dash">
+    <header class="topbar">
+      <a class="topbar__brand" href="/admin-dashboard.html">
+        <span class="topbar__name">Commute<span>360</span> · Admin</span>
+      </a>
+      <div class="topbar__actions">
+        <button type="button" class="ghost-btn" id="logoutBtn">Sign out</button>
+      </div>
+    </header>
+
+    <div class="page-header">
+      <h1>Admin dashboard</h1>
+      <p id="hello">Loading…</p>
+    </div>
+
+    <div id="sosBanner" hidden></div>
+
+    <nav class="tabs" id="tabs">
+      <button type="button" class="tab is-active" data-tab="overview">Riders per route</button>
+      <button type="button" class="tab" data-tab="routes">Routes &amp; stops</button>
+      <button type="button" class="tab" data-tab="live">Live tracking</button>
+      <button type="button" class="tab" data-tab="users">Users</button>
+      <button type="button" class="tab" data-tab="reports">Reports</button>
+      <button type="button" class="tab" data-tab="announce">Announcements</button>
+      <a class="tab" id="manageLink" href="/admin-routes.html">Manage routes ↗</a>
+    </nav>
+
+    <!-- ===== Riders per route ===== -->
+    <section id="tab-overview" class="stack">
+      <div class="stats">
+        <div class="stat"><div class="stat__num" id="statRoutes">–</div><div class="stat__label">Routes</div></div>
+        <div class="stat"><div class="stat__num" id="statRiders">–</div><div class="stat__label">Booked riders</div></div>
+        <div class="stat"><div class="stat__num" id="statBuses">–</div><div class="stat__label">Buses on the road</div></div>
+      </div>
+
+      <div class="panel">
+        <h2>Riders per route</h2>
+        <div class="scroll">
+          <table class="data">
+            <thead>
+              <tr>
+                <th>Route</th><th>Departs</th><th>Seats booked</th>
+                <th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="overviewBody"></tbody>
+          </table>
+        </div>
+        <p class="msg" id="overviewMsg"></p>
+      </div>
+
+      <div class="panel" id="ridersPanel" hidden>
+        <h2 id="ridersTitle">Riders</h2>
+        <div class="scroll">
+          <table class="data">
+            <thead><tr><th>Name</th><th>Email</th><th>Boards at</th><th>Gets off at</th><th>Days</th></tr></thead>
+            <tbody id="ridersBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Routes & stops ===== -->
+    <section id="tab-routes" class="stack" hidden></section>
+
+    <!-- ===== Live tracking ===== -->
+    <section id="tab-live" hidden>
+      <div class="live-layout">
+        <div class="panel">
+          <div class="muted" id="liveStatus">Loading map…</div>
+          <div id="map" class="map"></div>
+        </div>
+        <aside class="panel">
+          <h2>Buses</h2>
+          <ul class="plain-list" id="liveList"></ul>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ===== Users ===== -->
+    <section id="tab-users" hidden>
+      <div class="panel">
+        <h2>Users and roles</h2>
+        <p class="muted">New accounts start as Staff. Promote someone to Driver or Admin here. They must log out and back in for it to apply.</p>
+        <div class="scroll">
+          <table class="data">
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th></tr></thead>
+            <tbody id="usersBody"></tbody>
+          </table>
+        </div>
+        <p class="msg" id="usersMsg" role="status"></p>
+      </div>
+    </section>
+
+    <!-- ===== Reports ===== -->
+    <section id="tab-reports" hidden>
+      <div class="panel">
+        <h2>Reports</h2>
+        <div class="form-row" style="margin-bottom:12px">
+          <select class="input" id="reportType">
+            <option value="utilisation">Seat utilisation by weekday</option>
+            <option value="stops">Busiest stops</option>
+            <option value="attendance">Attendance (boardings and skips)</option>
+            <option value="riders">All riders</option>
+          </select>
+          <select class="input" id="reportDays" title="Only used by the attendance report">
+            <option value="7">Last 7 days</option>
+            <option value="30" selected>Last 30 days</option>
+            <option value="90">Last 90 days</option>
+          </select>
+          <button type="button" class="mini-btn" id="reportLoad">Show</button>
+          <button type="button" class="mini-btn" id="reportCsv">Download CSV</button>
+        </div>
+        <h3 id="reportTitle" style="margin:0 0 8px;font-size:16px"></h3>
+        <div class="scroll">
+          <table class="data"><thead id="reportHead"></thead><tbody id="reportBody"></tbody></table>
+        </div>
+        <p class="msg" id="reportMsg" role="status"></p>
+      </div>
+    </section>
+
+    <!-- ===== Announcements ===== -->
+    <section id="tab-announce" class="stack" hidden>
+      <div class="panel">
+        <h2>Send an announcement</h2>
+        <div class="form">
+          <div>
+            <label for="annRoute">Send to</label>
+            <select class="input" id="annRoute"></select>
+          </div>
+          <div>
+            <label for="annText">Message (max 300 characters)</label>
+            <textarea class="input" id="annText" maxlength="300" placeholder="e.g. Buses will leave 15 minutes early on Friday."></textarea>
+          </div>
+          <button type="button" class="cta" id="annSend">Send announcement</button>
+          <p class="msg" id="annMsg" role="status"></p>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Recently sent</h2>
+        <div class="scroll">
+          <table class="data"><thead><tr><th>Sent to</th><th>Message</th><th>When</th><th></th></tr></thead><tbody id="annBody"></tbody></table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="/auth.js"></script>
+  <script>
+    const MANAGE_ROUTES_URL = "/admin-routes.html";
+
+    const cfg = window.APP_CONFIG || {};
+    const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+    const COLORS = ["#38bdf8", "#a78bfa", "#34d399", "#fbbf24", "#f472b6", "#fb923c"];
+    const POLL_MS = 4000;
+    const STALE_MS = 45000;
+    const $ = (id) => document.getElementById(id);
+
+    let me = null;
+    let routes = [];
+    let activeTab = "overview";
+
+    function h(tag, props = {}, ...kids) {
+      const el = document.createElement(tag);
+      for (const [k, v] of Object.entries(props)) {
+        if (k === "class") el.className = v;
+        else if (k === "text") el.textContent = v;
+        else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+        else el.setAttribute(k, v);
+      }
+      kids.flat().forEach((c) => el.append(c));
+      return el;
+    }
+
+    function timeOf(value) {
+      const d = new Date(value);
+      return Number.isNaN(d.getTime())
+        ? "—"
+        : d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    }
+
+    async function readError(res) {
+      if (res.status === 403) return "You don't have permission to do that.";
+      try {
+        const type = res.headers.get("content-type") || "";
+        if (type.includes("json")) {
+          const d = await res.json();
+          if (d.errors) return Object.values(d.errors).flat().join(" ");
+          return d.message || d.title || `Error ${res.status}`;
+        }
+        return (await res.text()) || `Error ${res.status}`;
+      } catch {
+        return `Error ${res.status}`;
+      }
+    }
+
+    function showTab(name) {
+      activeTab = name;
+      document.querySelectorAll(".tab[data-tab]").forEach((b) =>
+        b.classList.toggle("is-active", b.dataset.tab === name));
+      ["overview", "routes", "live", "users", "reports", "announce"].forEach((t) => {
+        $("tab-" + t).hidden = t !== name;
+      });
+      if (name === "live") initLive();
+      if (name === "users") loadUsers();
+      if (name === "reports") loadReport();
+      if (name === "announce") loadAnnouncements();
+    }
+
+    document.querySelectorAll(".tab[data-tab]").forEach((btn) =>
+      btn.addEventListener("click", () => showTab(btn.dataset.tab)));
+    $("manageLink").href = MANAGE_ROUTES_URL;
+    $("logoutBtn").addEventListener("click", () => Auth.logout());
+
+    function renderOverview() {
+      $("statRoutes").textContent = routes.length;
+      $("statRiders").textContent = routes.reduce((n, r) => n + r.riders, 0);
+
+      const body = $("overviewBody");
+      body.innerHTML = "";
+
+      if (routes.length === 0) {
+        $("overviewMsg").textContent = "No routes yet. Use “Manage routes” to create one.";
+        return;
+      }
+
+      routes.forEach((r) => {
+        const pct = r.capacity ? Math.min(100, Math.round((r.riders / r.capacity) * 100)) : 0;
+        const bar = h("div", { class: "bar" + (pct >= 100 ? " is-full" : "") },
+          h("span", { style: `width:${pct}%` }));
+
+        body.append(h("tr", {},
+          h("td", { text: `${r.origin} → ${r.destination}` }),
+          h("td", { text: timeOf(r.scheduleTime) }),
+          h("td", {}, h("div", { text: `${r.riders} / ${r.capacity}` }), bar),
+          ...DAYS.map((d) => h("td", { text: String(r.days[d] ?? 0) })),
+          h("td", {}, h("button", { class: "mini-btn", type: "button", text: "View riders", onclick: () => showRiders(r) }))
+        ));
+      });
+    }
+
+    async function showRiders(route) {
+      const panel = $("ridersPanel");
+      const body = $("ridersBody");
+      $("ridersTitle").textContent = `Riders · ${route.origin} → ${route.destination}`;
+      body.innerHTML = "";
+      panel.hidden = false;
+
+      try {
+        const res = await Auth.api(`/api/summary/routes/${route.id}/riders`);
+        if (!res.ok) {
+          body.append(h("tr", {}, h("td", { colspan: "5", text: await readError(res) })));
+          return;
+        }
+        const riders = await res.json();
+        if (riders.length === 0) {
+          body.append(h("tr", {}, h("td", { colspan: "5", class: "muted", text: "Nobody has booked this route yet." })));
+          return;
+        }
+        riders.forEach((p) => body.append(h("tr", {},
+          h("td", { text: p.name }),
+          h("td", { text: p.email }),
+          h("td", { text: p.boardingStop ?? "—" }),
+          h("td", { text: p.dropOffStop ?? "—" }),
+          h("td", { text: (p.days || "").split(",").join(", ") })
+        )));
+        panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      } catch (err) {
+        if (err.message !== "Unauthorized") console.error(err);
+      }
+    }
+
+    function renderRoutes() {
+      const box = $("tab-routes");
+      box.innerHTML = "";
+
+      if (routes.length === 0) {
+        box.append(h("div", { class: "panel muted", text: "No routes yet." }));
+        return;
+      }
+
+      routes.forEach((r) => {
+        const rows = r.stops.length
+          ? r.stops.map((s, i) => h("tr", {},
+              h("td", { text: String(i + 1) }),
+              h("td", { text: s.name }),
+              h("td", { text: String(s.boarding) }),
+              h("td", { text: String(s.dropOff) })))
+          : [h("tr", {}, h("td", { colspan: "4", class: "muted", text: "No stops added yet." }))];
+
+        box.append(h("div", { class: "panel" },
+          h("h2", { text: `${r.origin} → ${r.destination} · departs ${timeOf(r.scheduleTime)}` }),
+          h("div", { class: "scroll" },
+            h("table", { class: "data" },
+              h("thead", {}, h("tr", {},
+                h("th", { text: "#" }), h("th", { text: "Stop" }),
+                h("th", { text: "People boarding" }), h("th", { text: "People getting off" }))),
+              h("tbody", {}, ...rows)))
+        ));
+      });
+
+      if (typeof decorateRoutes === "function") decorateRoutes();
+    }
+
+    async function loadUsers() {
+      const body = $("usersBody");
+      body.innerHTML = "";
+      try {
+        const res = await Auth.api("/api/admin/users");
+        if (!res.ok) { $("usersMsg").textContent = await readError(res); return; }
+        const users = await res.json();
+
+        users.forEach((u) => {
+          const select = h("select", { class: "input" },
+            ...["Staff", "Driver", "Admin"].map((role) => h("option", { value: role, text: role })));
+          select.value = u.role;
+          if (u.id === me.id) { select.disabled = true; select.title = "You can't change your own role"; }
+
+          let current = u.role;
+          select.addEventListener("change", async () => {
+            const msg = $("usersMsg");
+            msg.className = "msg";
+            try {
+              const res = await Auth.api(`/api/admin/users/${u.id}/role`, {
+                method: "PUT",
+                body: JSON.stringify({ role: select.value })
+              });
+              if (res.ok) {
+                current = select.value;
+                msg.className = "msg is-success";
+                msg.textContent = `${u.name} is now ${current}. It applies the next time they log in.`;
+              } else {
+                select.value = current;
+                msg.className = "msg is-error";
+                msg.textContent = await readError(res);
+              }
+            } catch (err) {
+              select.value = current;
+              if (err.message !== "Unauthorized") { msg.className = "msg is-error"; msg.textContent = "Could not reach the server."; }
+            }
+          });
+
+          body.append(h("tr", {}, h("td", { text: u.name }), h("td", { text: u.email }), h("td", {}, select)));
+        });
+      } catch (err) {
+        if (err.message !== "Unauthorized") console.error(err);
+      }
+    }
+
+    let map = null, mapStarted = false;
+    const buses = {};
+
+    function loadGoogleMaps() {
+      return new Promise((resolve, reject) => {
+        if (window.google && window.google.maps) { resolve(); return; }
+        if (!cfg || !cfg.GOOGLE_MAPS_API_KEY || cfg.GOOGLE_MAPS_API_KEY.startsWith("PASTE")) {
+          reject(new Error("Add your Google Maps API key to config.js"));
+          return;
+        }
+        window.gm_authFailure = () => { $("liveStatus").textContent = "Google Maps rejected the API key."; };
+        window.__mapsReady = resolve;
+        const s = document.createElement("script");
+        s.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(cfg.GOOGLE_MAPS_API_KEY) +
+                "&callback=__mapsReady&loading=async&libraries=marker&v=weekly";
+        s.async = true;
+        s.onerror = () => reject(new Error("Google Maps failed to load"));
+        document.head.appendChild(s);
+      });
+    }
+
+    const validStop = (s) =>
+      Number.isFinite(s.latitude) && Number.isFinite(s.longitude) && !(s.latitude === 0 && s.longitude === 0);
+
+    function animateTo(marker, target) {
+      const from = { ...marker._pos };
+      const start = performance.now();
+      const duration = 1500;
+      function step(now) {
+        const t = Math.min((now - start) / duration, 1);
+        marker._pos = {
+          lat: from.lat + (target.lat - from.lat) * t,
+          lng: from.lng + (target.lng - from.lng) * t
+        };
+        marker.position = marker._pos;
+        if (t < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+
+    async function initLive() {
+      if (mapStarted) return;
+      mapStarted = true;
+
+      try { await loadGoogleMaps(); }
+      catch (err) { $("liveStatus").textContent = err.message; mapStarted = false; return; }
+
+      const { AdvancedMarkerElement } = google.maps.marker;
+      map = new google.maps.Map($("map"), {
+        center: cfg.DEFAULT_CENTER,
+        zoom: 12,
+        mapId: cfg.MAP_ID,
+        streetViewControl: false,
+        mapTypeControl: false
+      });
+
+      const bounds = new google.maps.LatLngBounds();
+      let drawn = false;
+      routes.forEach((r, i) => {
+        const stops = r.stops.filter(validStop);
+        if (!stops.length) return;
+        const color = COLORS[i % COLORS.length];
+
+        new google.maps.Polyline({
+          map,
+          path: stops.map((s) => ({ lat: s.latitude, lng: s.longitude })),
+          strokeColor: color, strokeOpacity: 0.9, strokeWeight: 4
+        });
+
+        stops.forEach((s, j) => {
+          const dot = h("div", { class: "stop-dot", text: String(j + 1) });
+          dot.style.background = color;
+          new AdvancedMarkerElement({
+            map,
+            position: { lat: s.latitude, lng: s.longitude },
+            title: `${r.origin} → ${r.destination}: ${s.name}`,
+            content: dot
+          });
+          bounds.extend({ lat: s.latitude, lng: s.longitude });
+          drawn = true;
+        });
+      });
+      if (drawn) map.fitBounds(bounds, 60);
+
+      await pollLive();
+      setInterval(() => { if (!document.hidden && activeTab === "live") pollLive(); }, POLL_MS);
+    }
+
+    async function pollLive() {
+      try {
+        const res = await Auth.api("/api/summary/live");
+        if (!res.ok) return;
+        const items = await res.json();
+        const list = $("liveList");
+        list.innerHTML = "";
+        const seen = new Set();
+
+        items.forEach((b) => {
+          seen.add(b.routeId);
+          const target = { lat: b.latitude, lng: b.longitude };
+          const age = Date.now() - new Date(b.updatedAt).getTime();
+          const stale = age > STALE_MS;
+
+          if (map) {
+            let marker = buses[b.routeId];
+            if (!marker) {
+              marker = new google.maps.marker.AdvancedMarkerElement({
+                map, position: target, title: `${b.origin} → ${b.destination}`,
+                content: h("div", { class: "bus-dot", text: "🚌" }), zIndex: 999
+              });
+              marker._pos = target;
+              buses[b.routeId] = marker;
+            } else {
+              animateTo(marker, target);
+            }
+            marker.content.style.opacity = stale ? "0.45" : "1";
+          }
+
+          const speed = b.speedKmh != null ? ` · ${Math.round(b.speedKmh)} km/h` : "";
+          list.append(h("li", {},
+            h("div", {}, h("span", { class: "dot " + (stale ? "is-stale" : "is-live") }), `${b.origin} → ${b.destination}`),
+            h("div", { class: "muted", text: stale ? `Last seen ${Math.round(age / 60000)} min ago` : "Live" + speed })
+          ));
+        });
+
+        Object.keys(buses).forEach((id) => {
+          if (!seen.has(Number(id))) { buses[id].map = null; delete buses[id]; }
+        });
+
+        const liveNow = items.filter((b) => Date.now() - new Date(b.updatedAt).getTime() <= STALE_MS).length;
+        $("statBuses").textContent = liveNow;
+        $("liveStatus").textContent = items.length
+          ? `${items.length} bus${items.length > 1 ? "es" : ""} reporting`
+          : "No buses on the road right now.";
+      } catch (err) {
+        if (err.message !== "Unauthorized") console.error(err);
+      }
+    }
+
+    (async function init() {
+      try {
+        me = await Auth.requireRole(["Admin"]);
+        $("hello").textContent = `Signed in as ${me.name}`;
+
+        const res = await Auth.api("/api/summary/routes");
+        if (!res.ok) throw new Error(await readError(res));
+        routes = await res.json();
+
+        renderOverview();
+        renderRoutes();
+
+        const live = await Auth.api("/api/summary/live");
+        if (live.ok) {
+          const items = await live.json();
+          $("statBuses").textContent = items.filter((b) => Date.now() - new Date(b.updatedAt).getTime() <= STALE_MS).length;
+        }
+      } catch (err) {
+        if (!["Unauthorized", "Wrong role"].includes(err.message)) {
+          $("hello").textContent = err.message || "Something went wrong.";
+        }
+      }
+    })();
+  </script>
+  <script src="/admin-extra.js"></script>
+</body>
+</html>

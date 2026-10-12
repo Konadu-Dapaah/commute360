@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: commute360
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: ConnectionStrings__DefaultConnection
+        sync: false
+      - key: Jwt__Key
+        sync: false
+      - key: Jwt__Issuer
+        value: Commute360
+      - key: Jwt__Audience
+        value: Commute360Users
+      - key: ASPNETCORE_URLS
+        value: http://0.0.0.0:10000
+      - key: App__BaseUrl
+        sync: false

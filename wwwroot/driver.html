@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Commute360 — Driver</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/auth.css" />
+  <link rel="stylesheet" href="/css/routes.css" />
+  <!-- Configuration script providing APP_CONFIG -->
+  <script src="/config.js"></script>
+  <style>
+    [hidden] { display: none !important; }
+    .driver-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; align-items: start; }
+    .panel { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); border-radius: 16px; padding: 18px; color: #e8eefc; }
+    .panel h2 { margin: 0 0 12px; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; opacity: .7; }
+    .panel label { display: block; font-size: 13px; opacity: .8; margin: 12px 0 6px; }
+    .panel select, .panel input[type="text"] {
+      width: 100%; padding: 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,.2);
+      background: rgba(10,22,40,.7); color: #e8eefc; font: inherit;
+    }
+    .big-btn { width: 100%; margin-top: 16px; padding: 14px; border: 0; border-radius: 12px; font: inherit; font-weight: 700; font-size: 16px; cursor: pointer; background: #34d399; color: #04210f; }
+    .big-btn--stop { background: #f87171; color: #2b0505; }
+    .big-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .readout { margin-top: 14px; font-size: 14px; line-height: 1.7; opacity: .9; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+    .chip { padding: 8px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.08); color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+    .chip:hover { background: rgba(255,255,255,.16); }
+    .msg { margin-top: 12px; font-size: 14px; min-height: 20px; }
+    .msg.is-error { color: #fca5a5; }
+    .msg.is-success { color: #6ee7b7; }
+    .sent-list { list-style: none; margin: 12px 0 0; padding: 0; font-size: 13px; opacity: .85; display: flex; flex-direction: column; gap: 6px; }
+    .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #8b97ad; margin-right: 8px; }
+    .dot.is-live { background: #34d399; box-shadow: 0 0 0 4px rgba(52,211,153,.25); }
+  </style>
+</head>
+<body>
+  <div class="scene" aria-hidden="true">
+    <div class="scene__grid"></div>
+    <div class="scene__orb scene__orb--a"></div>
+    <div class="scene__orb scene__orb--b"></div>
+  </div>
+
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="topbar__brand" href="/driver.html">
+        <span class="topbar__name">Commute<span>360</span> · Driver</span>
+      </a>
+      <div class="topbar__actions">
+        <button type="button" class="ghost-btn" id="logoutBtn">Sign out</button>
+      </div>
+    </header>
+
+    <div class="page-header">
+      <h1>Driver console</h1>
+      <p>Start your trip to share the bus's live position. Send alerts to riders any time.</p>
+    </div>
+
+    <div class="driver-grid">
+      <section class="panel">
+        <h2>Trip</h2>
+        <label for="routeSelect">Route</label>
+        <select id="routeSelect"></select>
+
+        <button type="button" class="big-btn" id="tripBtn">Start trip</button>
+
+        <div class="readout">
+          <div><span class="dot" id="liveDot"></span><span id="gpsInfo">GPS off</span></div>
+          <div id="sentInfo"></div>
+        </div>
+        <p class="msg" id="tripMsg" role="status" aria-live="polite"></p>
+
+        <button type="button" class="big-btn" id="sosBtn" style="background:#dc2626;color:#fff;margin-top:8px">🚨 Emergency (SOS)</button>
+        <p class="msg" id="sosMsg" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="panel">
+        <h2>Alert riders</h2>
+        <div class="chips" id="chips">
+          <button type="button" class="chip" data-type="Delay" data-msg="Bus is running late.">Running late</button>
+          <button type="button" class="chip" data-type="Traffic" data-msg="Heavy traffic ahead, expect delays.">Heavy traffic</button>
+          <button type="button" class="chip" data-type="Breakdown" data-msg="Bus has broken down. Updates to follow.">Breakdown</button>
+          <button type="button" class="chip" data-type="Info" data-msg="Bus is now departing.">Departing</button>
+        </div>
+
+        <label for="alertType">Type</label>
+        <select id="alertType">
+          <option value="Info">Info</option>
+          <option value="Delay">Delay</option>
+          <option value="Traffic">Traffic</option>
+          <option value="Breakdown">Breakdown</option>
+        </select>
+
+        <label for="alertMsg">Message (max 200 characters)</label>
+        <input type="text" id="alertMsg" maxlength="200" placeholder="e.g. Taking a detour via Ring Road" />
+
+        <button type="button" class="big-btn" id="alertBtn" style="background:#60a5fa;color:#04142b">Send alert</button>
+        <p class="msg" id="alertMsgStatus" role="status" aria-live="polite"></p>
+        <ul class="sent-list" id="sentList"></ul>
+      </section>
+
+      <section class="panel" style="grid-column: 1 / -1">
+        <h2>Route overview</h2>
+        <div id="overview" class="muted">Select a route to see riders and stops.</div>
+      </section>
+
+      <section class="panel" style="grid-column: 1 / -1">
+        <h2>Today's boarding list</h2>
+        <p class="muted" id="manifestNote">Tick each rider as they board. People who skipped today aren't listed.</p>
+        <div id="manifest"></div>
+        <p class="msg" id="manifestMsg" role="status" aria-live="polite"></p>
+      </section>
+    </div>
+  </div>
+
+  <script src="/auth.js"></script>
+  <script>
+    const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+    if (!token) window.location.href = "/login.html";
+
+    const SEND_MS = 4000;
+    const $ = (id) => document.getElementById(id);
+
+    let routeId = null;
+    let watchId = null;
+    let sendTimer = null;
+    let lastPos = null;
+    let wakeLock = null;
+    let sentCount = 0;
+    let firstFixSent = false;
+
+    async function api(path, options = {}) {
+      if (window.Auth && typeof window.Auth.api === "function") {
+        return window.Auth.api(path, options);
+      }
+      const baseUrl = (window.APP_CONFIG && window.APP_CONFIG.API_BASE) || "";
+      const res = await fetch(baseUrl + path, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+          ...(options.headers || {})
+        }
+      });
+      if (res.status === 401) {
+        localStorage.removeItem("token");
+        window.location.href = "/login.html";
+        throw new Error("Unauthorized");
+      }
+      return res;
+    }
+
+    async function readError(res) {
+      if (res.status === 403) return "This account isn't set up as a driver.";
+      try {
+        const type = res.headers.get("content-type") || "";
+        if (type.includes("json")) {
+          const d = await res.json();
+          if (d.errors) return Object.values(d.errors).flat().join(" ");
+          return d.message || d.title || `Error ${res.status}`;
+        }
+        return (await res.text()) || `Error ${res.status}`;
+      } catch {
+        return `Error ${res.status}`;
+      }
+    }
+
+    function setMsg(el, text, type) {
+      el.textContent = text;
+      el.className = "msg" + (type ? ` is-${type}` : "");
+    }
+
+    async function loadRoutes() {
+      try {
+        const res = await api("/api/driver/routes");
+        if (!res.ok) { setMsg($("tripMsg"), `Couldn't load routes (${res.status}).`, "error"); return; }
+        const routes = await res.json();
+        const select = $("routeSelect");
+        select.innerHTML = "";
+        routes.forEach((r) => select.add(new Option(`${r.origin} → ${r.destination}`, r.id)));
+        if (routes.length === 0) select.add(new Option("No routes available", ""));
+      } catch (err) {
+        if (err.message !== "Unauthorized") setMsg($("tripMsg"), "Could not reach the server.", "error");
+      }
+    }
+
+    async function requestWakeLock() {
+      try {
+        if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen");
+      } catch { }
+    }
+    function releaseWakeLock() {
+      if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+    }
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && watchId !== null) requestWakeLock();
+    });
+
+    function setRunning(running) {
+      $("tripBtn").textContent = running ? "End trip" : "Start trip";
+      $("tripBtn").classList.toggle("big-btn--stop", running);
+      $("routeSelect").disabled = running;
+      $("liveDot").classList.toggle("is-live", running);
+      if (!running) $("gpsInfo").textContent = "GPS off";
+    }
+
+    function onPosition(pos) {
+      lastPos = pos;
+      const c = pos.coords;
+      $("gpsInfo").textContent =
+        `GPS on · ${c.latitude.toFixed(5)}, ${c.longitude.toFixed(5)} · ±${Math.round(c.accuracy)} m`;
+      if (!firstFixSent) {
+        firstFixSent = true;
+        sendLocation();
+      }
+    }
+
+    function onGpsError(err) {
+      const reasons = {
+        1: "Location permission denied. Allow location for this site and try again.",
+        2: "Can't determine your position right now.",
+        3: "GPS timed out."
+      };
+      $("gpsInfo").textContent = reasons[err.code] || err.message;
+    }
+
+    async function sendLocation() {
+      if (!lastPos || routeId === null) return;
+      const c = lastPos.coords;
+      const body = {
+        routeId,
+        latitude: c.latitude,
+        longitude: c.longitude,
+        heading: Number.isFinite(c.heading) ? c.heading : null,
+        speedKmh: Number.isFinite(c.speed) ? Math.max(0, c.speed * 3.6) : null
+      };
+
+      try {
+        const res = await api("/api/tracking/location", { method: "POST", body: JSON.stringify(body) });
+        if (res.ok) {
+          sentCount++;
+          $("sentInfo").textContent = `Last sent ${new Date().toLocaleTimeString()} · ${sentCount} updates`;
+        } else {
+          const msg = await readError(res);
+          await stopTrip(false);
+          setMsg($("tripMsg"), msg, "error");
+        }
+      } catch (err) {
+        if (err.message !== "Unauthorized") {
+          console.error(err);
+          $("sentInfo").textContent = "Network problem — retrying…";
+        }
+      }
+    }
+
+    function startTrip() {
+      routeId = parseInt($("routeSelect").value, 10);
+      if (!routeId) { setMsg($("tripMsg"), "Choose a route first.", "error"); return; }
+      if (!("geolocation" in navigator)) { setMsg($("tripMsg"), "This browser has no GPS support.", "error"); return; }
+      if (!window.isSecureContext) {
+        setMsg($("tripMsg"), "GPS only works over HTTPS (or localhost). Open this page using https://.", "error");
+        routeId = null;
+        return;
+      }
+
+      lastPos = null;
+      firstFixSent = false;
+      sentCount = 0;
+      watchId = navigator.geolocation.watchPosition(onPosition, onGpsError, {
+        enableHighAccuracy: true,
+        maximumAge: 2000,
+        timeout: 20000
+      });
+      sendTimer = setInterval(sendLocation, SEND_MS);
+      requestWakeLock();
+      setRunning(true);
+      setMsg($("tripMsg"), "Trip started. Waiting for a GPS fix…", "success");
+    }
+
+    async function stopTrip(notifyServer = true) {
+      const endedRoute = routeId;
+
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      if (sendTimer) clearInterval(sendTimer);
+      watchId = null;
+      sendTimer = null;
+      routeId = null;
+      lastPos = null;
+      releaseWakeLock();
+      setRunning(false);
+      $("sentInfo").textContent = "";
+
+      if (notifyServer && endedRoute) {
+        try { await api(`/api/tracking/routes/${endedRoute}/location`, { method: "DELETE" }); }
+        catch (err) { console.error(err); }
+        setMsg($("tripMsg"), "Trip ended. The bus is no longer shown to riders.", "success");
+      }
+    }
+
+    $("tripBtn").addEventListener("click", () => {
+      if (watchId === null) startTrip(); else stopTrip(true);
+    });
+
+    document.querySelectorAll(".chip").forEach((chip) => {
+      chip.addEventListener("click", () => {
+        $("alertType").value = chip.dataset.type;
+        $("alertMsg").value = chip.dataset.msg;
+        $("alertMsg").focus();
+      });
+    });
+
+    $("alertBtn").addEventListener("click", async () => {
+      const rid = parseInt($("routeSelect").value, 10);
+      const message = $("alertMsg").value.trim();
+      const status = $("alertMsgStatus");
+
+      if (!rid) { setMsg(status, "Choose a route first.", "error"); return; }
+      if (message.length < 3) { setMsg(status, "Write a short message (at least 3 characters).", "error"); return; }
+
+      $("alertBtn").disabled = true;
+      try {
+        const res = await api("/api/tracking/alerts", {
+          method: "POST",
+          body: JSON.stringify({ routeId: rid, type: $("alertType").value, message })
+        });
+
+        if (res.ok) {
+          setMsg(status, "Alert sent to riders on this route.", "success");
+          const li = document.createElement("li");
+          li.textContent = `${new Date().toLocaleTimeString()} · ${$("alertType").value}: ${message}`;
+          $("sentList").prepend(li);
+          $("alertMsg").value = "";
+        } else {
+          setMsg(status, await readError(res), "error");
+        }
+      } catch (err) {
+        if (err.message !== "Unauthorized") setMsg(status, "Could not reach the server.", "error");
+      } finally {
+        $("alertBtn").disabled = false;
+      }
+    });
+
+    $("logoutBtn").addEventListener("click", async () => {
+      if (watchId !== null) await stopTrip(true);
+      localStorage.removeItem("token");
+      window.location.href = "/login.html";
+    });
+
+    let summary = [];
+
+    function cell(tag, text) {
+      const el = document.createElement(tag);
+      el.textContent = text;
+      return el;
+    }
+
+    function renderOverview() {
+      const box = $("overview");
+      box.innerHTML = "";
+      box.className = "";
+
+      const r = summary.find((x) => x.id === parseInt($("routeSelect").value, 10));
+      if (!r) {
+        box.className = "muted";
+        box.textContent = "Select a route to see riders and stops.";
+        return;
+      }
+
+      const head = document.createElement("p");
+      head.style.fontWeight = "700";
+      head.textContent = `${r.origin} → ${r.destination} · ${r.riders} of ${r.capacity} seats booked · ${r.expectedToday} expected today` +
+        (r.skippedToday ? ` (${r.skippedToday} skipping)` : "");
+
+      const days = document.createElement("p");
+      days.className = "muted";
+      days.textContent = "Riders by day: " +
+        Object.entries(r.days).map(([d, n]) => `${d} ${n}`).join(" · ");
+
+      const table = document.createElement("table");
+      table.style.cssText = "width:100%;border-collapse:collapse;font-size:14px";
+      const thead = document.createElement("thead");
+      const headRow = document.createElement("tr");
+      ["#", "Stop", "Boarding", "Getting off"].forEach((t) => {
+        const th = cell("th", t);
+        th.style.cssText = "text-align:left;padding:8px;opacity:.65;font-size:12px;text-transform:uppercase";
+        headRow.append(th);
+      });
+      thead.append(headRow);
+
+      const tbody = document.createElement("tbody");
+      if (r.stops.length === 0) {
+        const tr = document.createElement("tr");
+        const td = cell("td", "No stops on this route yet.");
+        td.colSpan = 4;
+        td.style.padding = "8px";
+        tr.append(td);
+        tbody.append(tr);
+      }
+      r.stops.forEach((s, i) => {
+        const tr = document.createElement("tr");
+        [String(i + 1), s.name, String(s.boarding), String(s.dropOff)].forEach((t) => {
+          const td = cell("td", t);
+          td.style.cssText = "padding:8px;border-top:1px solid rgba(255,255,255,.1)";
+          tr.append(td);
+        });
+        tbody.append(tr);
+      });
+      table.append(thead, tbody);
+
+      const wrap = document.createElement("div");
+      wrap.style.overflowX = "auto";
+      wrap.append(table);
+      box.append(head, days, wrap);
+    }
+
+    async function loadOverview() {
+      try {
+        const res = await api("/api/summary/routes");
+        if (!res.ok) { $("overview").textContent = await readError(res); return; }
+        summary = await res.json();
+        renderOverview();
+      } catch (err) {
+        if (err.message !== "Unauthorized") $("overview").textContent = "Couldn't load the route overview.";
+      }
+    }
+
+    async function loadManifest() {
+      const box = $("manifest");
+      const rid = parseInt($("routeSelect").value, 10);
+      box.innerHTML = "";
+      if (!rid) return;
+
+      try {
+        const res = await api(`/api/driver/routes/${rid}/manifest`);
+        if (!res.ok) { setMsg($("manifestMsg"), await readError(res), "error"); return; }
+        const data = await res.json();
+
+        if (data.riders.length === 0) {
+          box.className = "muted";
+          box.textContent = "Nobody is expected on this route today.";
+          return;
+        }
+        box.className = "";
+
+        const boardedCount = data.riders.filter((r) => r.boarded).length;
+        const summaryLine = document.createElement("p");
+        summaryLine.style.fontWeight = "700";
+        summaryLine.textContent = `${boardedCount} of ${data.riders.length} boarded` +
+          (data.skipped ? ` · ${data.skipped} skipping today` : "");
+        box.append(summaryLine);
+
+        data.riders.forEach((r) => {
+          const row = document.createElement("label");
+          row.style.cssText = "display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid rgba(255,255,255,.1);cursor:pointer";
+
+          const check = document.createElement("input");
+          check.type = "checkbox";
+          check.checked = r.boarded;
+          check.style.cssText = "width:22px;height:22px";
+          check.addEventListener("change", async () => {
+            try {
+              const res2 = await api("/api/driver/boardings", {
+                method: "POST",
+                body: JSON.stringify({ bookingId: r.bookingId, boarded: check.checked })
+              });
+              if (!res2.ok) { check.checked = !check.checked; setMsg($("manifestMsg"), await readError(res2), "error"); }
+              else setMsg($("manifestMsg"), "");
+            } catch (err) {
+              check.checked = !check.checked;
+              if (err.message !== "Unauthorized") setMsg($("manifestMsg"), "Could not reach the server.", "error");
+            }
+          });
+
+          const text = document.createElement("span");
+          text.textContent = `${r.name} · ${r.boardingStop} → ${r.dropOffStop}`;
+          row.append(check, text);
+          box.append(row);
+        });
+      } catch (err) {
+        if (err.message !== "Unauthorized") setMsg($("manifestMsg"), "Couldn't load the boarding list.", "error");
+      }
+    }
+
+    $("sosBtn").addEventListener("click", async () => {
+      const rid = parseInt($("routeSelect").value, 10);
+      const msg = $("sosMsg");
+      if (!rid) { setMsg(msg, "Choose a route first.", "error"); return; }
+      if (!confirm("Send an EMERGENCY alert? Admins and the riders on this route will be notified immediately.")) return;
+
+      const send = async (lat, lng) => {
+        try {
+          const res = await api("/api/safety/sos", {
+            method: "POST",
+            body: JSON.stringify({ routeId: rid, latitude: lat, longitude: lng })
+          });
+          setMsg(msg, res.ok ? "Emergency alert sent. Help is being arranged." : await readError(res), res.ok ? "success" : "error");
+        } catch (err) {
+          if (err.message !== "Unauthorized") setMsg(msg, "Could not reach the server. Call your supervisor directly.", "error");
+        }
+      };
+
+      if (lastPos) { send(lastPos.coords.latitude, lastPos.coords.longitude); return; }
+      if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (p) => send(p.coords.latitude, p.coords.longitude),
+          () => send(null, null),
+          { timeout: 5000 }
+        );
+      } else {
+        send(null, null);
+      }
+    });
+
+    $("routeSelect").addEventListener("change", () => { renderOverview(); loadManifest(); });
+    setInterval(() => { if (!document.hidden) loadManifest(); }, 30000);
+
+    Auth.requireRole(["Driver"])
+      .then(async () => { await loadRoutes(); await loadOverview(); await loadManifest(); })
+      .catch((err) => { if (!["Unauthorized", "Wrong role"].includes(err.message)) console.error(err); });
+  </script>
+</body>
+</html>

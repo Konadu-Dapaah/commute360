@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Commute360 — Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/auth.css" />
+  <link rel="stylesheet" href="/css/routes.css" />
+  <link rel="stylesheet" href="/css/admin.css" />
+</head>
+<body>
+  <div class="scene" aria-hidden="true">
+    <div class="scene__grid"></div>
+    <div class="scene__orb scene__orb--a"></div>
+    <div class="scene__orb scene__orb--b"></div>
+    <svg class="route-svg" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice">
+      <path d="M-20 620 C 180 520, 260 680, 420 540 S 620 380, 780 460 S 980 620, 1220 380" />
+      <path d="M-40 280 C 160 360, 300 180, 480 260 S 720 420, 900 300 S 1080 160, 1240 220" opacity="0.45" />
+      <circle cx="420" cy="540" r="5" />
+      <circle cx="780" cy="460" r="5" style="animation-delay: 0.8s" />
+      <circle cx="900" cy="300" r="5" style="animation-delay: 1.4s" />
+    </svg>
+  </div>
+
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="topbar__brand" href="/dashboard.html">
+        <div class="brand-mark__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#0a1628" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 16V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8" />
+            <path d="M4 12h16" />
+            <circle cx="7.5" cy="17.5" r="1.5" />
+            <circle cx="16.5" cy="17.5" r="1.5" />
+            <path d="M8 10h2M14 10h2" />
+          </svg>
+        </div>
+        <span class="topbar__name">Commute<span>360</span></span>
+      </a>
+      <div class="topbar__actions">
+        <a class="ghost-btn" href="/dashboard.html">Dashboard</a>
+        <a class="ghost-btn" href="/routes.html">Routes</a>
+        <button type="button" class="ghost-btn" id="logoutBtn">Sign out</button>
+      </div>
+    </header>
+
+    <div class="page-header">
+      <h1>Admin</h1>
+      <p>Create routes and pin stops so riders can book and track their commute.</p>
+    </div>
+
+    <div class="admin-layout">
+      <!-- Create Route Panel -->
+      <section class="admin-panel">
+        <p class="panel-label">Create route</p>
+        <form id="routeForm" novalidate>
+          <div class="admin-fields-row">
+            <div class="field">
+              <label for="origin">Origin</label>
+              <div class="field__control">
+                <input type="text" id="origin" placeholder="e.g. Accra Central" required />
+              </div>
+            </div>
+            <div class="field">
+              <label for="destination">Destination</label>
+              <div class="field__control">
+                <input type="text" id="destination" placeholder="e.g. Tema" required />
+              </div>
+            </div>
+          </div>
+
+          <div class="admin-fields-row">
+            <div class="field">
+              <label for="scheduleTime">Schedule time</label>
+              <div class="field__control">
+                <input type="datetime-local" id="scheduleTime" required />
+              </div>
+            </div>
+            <div class="field">
+              <label for="capacity">Capacity</label>
+              <div class="field__control">
+                <input type="number" id="capacity" min="1" placeholder="e.g. 40" required />
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn" id="routeBtn">
+            <span class="btn__spinner" aria-hidden="true"></span>
+            <span class="btn__label">Create route</span>
+          </button>
+        </form>
+        <p id="routeMsg" class="message" role="status" aria-live="polite"></p>
+      </section>
+
+      <!-- Add Stop Panel -->
+      <section class="admin-panel">
+        <p class="panel-label">Add stop</p>
+        <form id="stopForm" novalidate>
+          <div class="admin-fields-row">
+            <div class="field">
+              <label for="routeId">Route ID</label>
+              <div class="field__control">
+                <input type="number" id="routeId" min="1" placeholder="From create route" required />
+              </div>
+            </div>
+            <div class="field">
+              <label for="stopName">Stop name</label>
+              <div class="field__control">
+                <input type="text" id="stopName" placeholder="e.g. Kaneshie" required />
+              </div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="stopSearch">Search for a place (fills coordinates automatically)</label>
+            <div class="field__control">
+              <input type="text" id="stopSearch" placeholder="e.g. Accra Mall, Ghana" autocomplete="off" />
+            </div>
+            <div id="searchResults" style="margin-top:8px;"></div>
+            <p id="selectedLocationLabel" style="margin-top:6px; font-size: 0.85rem; opacity: 0.75;"></p>
+          </div>
+
+          <div class="admin-fields-row">
+            <div class="field">
+              <label for="lat">Latitude</label>
+              <div class="field__control">
+                <input type="number" id="lat" step="any" placeholder="5.6037" required />
+              </div>
+            </div>
+            <div class="field">
+              <label for="lng">Longitude</label>
+              <div class="field__control">
+                <input type="number" id="lng" step="any" placeholder="-0.1870" required />
+              </div>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="order">Order</label>
+            <div class="field__control">
+              <input type="number" id="order" min="0" placeholder="0" required />
+            </div>
+          </div>
+
+          <button type="submit" class="btn" id="stopBtn">
+            <span class="btn__spinner" aria-hidden="true"></span>
+            <span class="btn__label">Add stop</span>
+          </button>
+        </form>
+        <p id="stopMsg" class="message" role="status" aria-live="polite"></p>
+
+        <hr style="margin: 20px 0; border: 0; border-top: 1px solid rgba(255, 255, 255, 0.1);" />
+
+        <h2>Existing Routes</h2>
+        <div id="routeList" style="margin-top: 10px;"></div>
+      </section>
+    </div>
+  </div>
+
+  <script src="/nav.js"></script>
+  <script>
+    // Relative paths only — this works identically on localhost AND on the real deployed domain.
+    // Never hardcode "http://localhost:5291" here; it silently breaks every request once the page
+    // is opened from anywhere other than your own PC.
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      window.location.href = "/login.html";
+    }
+
+    function setMessage(el, text, type) {
+      el.textContent = text;
+      el.className = "message" + (type ? ` is-${type}` : "");
+      if (type === "error") {
+        el.style.animation = "none";
+        void el.offsetWidth;
+        el.style.animation = "";
+      }
+    }
+
+    async function parseErrorMessage(res) {
+      try {
+        const data = await res.json();
+        if (data.errors) {
+          return Object.entries(data.errors)
+            .map(([field, errs]) => `${field}: ${errs.join(", ")}`)
+            .join(" | ");
+        }
+        if (data.message) return data.message;
+        if (typeof data === "string") return data;
+        return JSON.stringify(data);
+      } catch {
+        return `Server error ${res.status} (${res.statusText || "Unauthorized/Forbidden"})`;
+      }
+    }
+
+    document.getElementById("logoutBtn").addEventListener("click", () => {
+      localStorage.removeItem("token");
+      window.location.href = "/login.html";
+    });
+
+    // ---------- Place search (Nominatim) — fills lat/lng from a typed name ----------
+    const searchInput = document.getElementById("stopSearch");
+    const resultsEl = document.getElementById("searchResults");
+    let searchTimeout;
+
+    searchInput.addEventListener("input", () => {
+      clearTimeout(searchTimeout);
+      const query = searchInput.value.trim();
+
+      if (query.length < 3) {
+        resultsEl.innerHTML = "";
+        return;
+      }
+
+      // Debounce 500ms so we never exceed Nominatim's 1-request-per-second limit
+      searchTimeout = setTimeout(() => searchPlace(query), 500);
+    });
+
+    async function searchPlace(query) {
+      resultsEl.innerHTML = `<p style="opacity:0.7;">Searching…</p>`;
+
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5`,
+          { headers: { "Accept-Language": "en" } }
+        );
+        const places = await res.json();
+
+        if (!Array.isArray(places) || places.length === 0) {
+          resultsEl.innerHTML = `<p style="opacity:0.7;">No results found.</p>`;
+          return;
+        }
+
+        resultsEl.innerHTML = "";
+        places.forEach((place) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "ghost-btn";
+          btn.style.display = "block";
+          btn.style.width = "100%";
+          btn.style.textAlign = "left";
+          btn.style.marginBottom = "6px";
+          btn.textContent = place.display_name;
+          btn.onclick = () => selectPlace(place);
+          resultsEl.appendChild(btn);
+        });
+      } catch (err) {
+        console.error(err);
+        resultsEl.innerHTML = `<p style="color:#ff6b6b;">Search failed. Try again.</p>`;
+      }
+    }
+
+    function selectPlace(place) {
+      document.getElementById("lat").value = parseFloat(place.lat).toFixed(6);
+      document.getElementById("lng").value = parseFloat(place.lon).toFixed(6);
+      document.getElementById("selectedLocationLabel").textContent =
+        `Selected: ${place.display_name} (${parseFloat(place.lat).toFixed(5)}, ${parseFloat(place.lon).toFixed(5)})`;
+      resultsEl.innerHTML = "";
+      searchInput.value = place.display_name;
+    }
+
+    // ---------- Load existing routes ----------
+    async function loadRouteList() {
+      try {
+        const res = await fetch(`/api/routes`, {
+          headers: { "Authorization": "Bearer " + token }
+        });
+        if (!res.ok) return;
+
+        const routes = await res.json();
+        const container = document.getElementById("routeList");
+        if (!container) return;
+
+        container.innerHTML = "";
+        if (routes.length === 0) {
+          container.innerHTML = "<p style='opacity: 0.7;'>No routes found.</p>";
+          return;
+        }
+
+        routes.forEach(r => {
+          const div = document.createElement("div");
+          div.style.display = "flex";
+          div.style.justifyContent = "space-between";
+          div.style.alignItems = "center";
+          div.style.marginBottom = "8px";
+          div.style.padding = "8px 12px";
+          div.style.background = "rgba(255, 255, 255, 0.05)";
+          div.style.borderRadius = "6px";
+
+          div.innerHTML = `
+            <span><strong>${r.origin} → ${r.destination}</strong> <small>(ID: ${r.id})</small></span>
+            <button onclick="deleteRoute(${r.id})" class="ghost-btn" style="color: #ff6b6b;">Delete</button>
+          `;
+          container.appendChild(div);
+        });
+      } catch (err) {
+        console.error("Failed to load routes:", err);
+      }
+    }
+
+    async function deleteRoute(id) {
+      if (!confirm("Delete this route?")) return;
+      try {
+        const res = await fetch(`/api/routes/${id}`, {
+          method: "DELETE",
+          headers: { "Authorization": "Bearer " + token }
+        });
+        if (res.ok) {
+          loadRouteList();
+        } else {
+          alert("Failed to delete route: " + await parseErrorMessage(res));
+        }
+      } catch (err) {
+        alert("Could not connect to the API.");
+      }
+    }
+
+    // ---------- Submit Create Route ----------
+    document.getElementById("routeForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const origin = document.getElementById("origin").value.trim();
+      const destination = document.getElementById("destination").value.trim();
+      const scheduleTimeInput = document.getElementById("scheduleTime").value;
+      const capacity = parseInt(document.getElementById("capacity").value, 10);
+      const routeBtn = document.getElementById("routeBtn");
+      const routeMsg = document.getElementById("routeMsg");
+
+      if (!origin || !destination || !scheduleTimeInput || !capacity) {
+        setMessage(routeMsg, "Please fill in all route fields.", "error");
+        return;
+      }
+
+      const scheduleTime = new Date(scheduleTimeInput).toISOString();
+
+      routeBtn.disabled = true;
+      routeBtn.classList.add("is-loading");
+      setMessage(routeMsg, "");
+
+      try {
+        const res = await fetch(`/api/routes`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + token
+          },
+          body: JSON.stringify({ origin, destination, scheduleTime, capacity })
+        });
+
+        if (res.status === 401) {
+          localStorage.removeItem("token");
+          window.location.href = "/login.html";
+          return;
+        }
+
+        if (res.ok) {
+          const data = await res.json();
+          setMessage(routeMsg, `Created route ID: ${data.id}`, "success");
+          document.getElementById("routeId").value = data.id;
+
+          document.getElementById("origin").value = "";
+          document.getElementById("destination").value = "";
+          document.getElementById("scheduleTime").value = "";
+          document.getElementById("capacity").value = "";
+
+          loadRouteList();
+        } else {
+          const errMsg = await parseErrorMessage(res);
+          setMessage(routeMsg, "Failed: " + errMsg, "error");
+        }
+      } catch (err) {
+        console.error(err);
+        setMessage(routeMsg, "Could not connect to the API.", "error");
+      } finally {
+        routeBtn.disabled = false;
+        routeBtn.classList.remove("is-loading");
+      }
+    });
+
+    // ---------- Submit Add Stop ----------
+    document.getElementById("stopForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const routeId = document.getElementById("routeId").value;
+      const name = document.getElementById("stopName").value.trim();
+      const latitude = parseFloat(document.getElementById("lat").value);
+      const longitude = parseFloat(document.getElementById("lng").value);
+      const order = parseInt(document.getElementById("order").value, 10);
+      const stopBtn = document.getElementById("stopBtn");
+      const stopMsg = document.getElementById("stopMsg");
+
+      if (!routeId || !name || Number.isNaN(latitude) || Number.isNaN(longitude) || Number.isNaN(order)) {
+        setMessage(stopMsg, "Please fill in all stop fields (use the search box or type coordinates directly).", "error");
+        return;
+      }
+
+      stopBtn.disabled = true;
+      stopBtn.classList.add("is-loading");
+      setMessage(stopMsg, "");
+
+      try {
+        const res = await fetch(`/api/routes/${routeId}/stops`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + token
+          },
+          body: JSON.stringify({ name, latitude, longitude, order })
+        });
+
+        if (res.status === 401) {
+          localStorage.removeItem("token");
+          window.location.href = "/login.html";
+          return;
+        }
+
+        if (res.ok) {
+          setMessage(stopMsg, "Stop added!", "success");
+          document.getElementById("stopName").value = "";
+          document.getElementById("stopSearch").value = "";
+          document.getElementById("selectedLocationLabel").textContent = "";
+          document.getElementById("lat").value = "";
+          document.getElementById("lng").value = "";
+          document.getElementById("order").value = "";
+        } else {
+          const errMsg = await parseErrorMessage(res);
+          setMessage(stopMsg, "Failed: " + errMsg, "error");
+        }
+      } catch (err) {
+        console.error(err);
+        setMessage(stopMsg, "Could not connect to the API.", "error");
+      } finally {
+        stopBtn.disabled = false;
+        stopBtn.classList.remove("is-loading");
+      }
+    });
+
+    loadRouteList();
+  </script>
+</body>
+</html>

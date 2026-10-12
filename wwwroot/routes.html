@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Commute360 — Select Boarding & Route</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/auth.css" />
+  <link rel="stylesheet" href="/css/routes.css" />
+  <link rel="stylesheet" href="/css/admin.css" />
+  <!-- Include configuration script early in the head -->
+  <script src="/config.js"></script>
+</head>
+<body>
+  <div class="scene" aria-hidden="true">
+    <div class="scene__grid"></div>
+    <div class="scene__orb scene__orb--a"></div>
+    <div class="scene__orb scene__orb--b"></div>
+  </div>
+
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="topbar__brand" href="/dashboard.html">
+        <div class="brand-mark__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#0a1628" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 16V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8" />
+            <path d="M4 12h16" />
+            <circle cx="7.5" cy="17.5" r="1.5" />
+            <circle cx="16.5" cy="17.5" r="1.5" />
+            <path d="M8 10h2M14 10h2" />
+          </svg>
+        </div>
+        <span class="topbar__name">Commute<span>360</span></span>
+      </a>
+      <div class="topbar__actions">
+        <a class="ghost-btn" href="/dashboard.html">Dashboard</a>
+        <a class="ghost-btn" href="/routes.html">Routes</a>
+        <button type="button" class="ghost-btn" id="logoutBtn">Sign out</button>
+      </div>
+    </header>
+
+    <div class="page-header">
+      <h1>Book Your Route</h1>
+      <p>Select your route and pick your preferred boarding & drop-off stops.</p>
+    </div>
+
+    <div class="admin-layout" style="grid-template-columns: 1fr; max-width: 600px; margin: 0 auto;">
+      <section class="admin-panel">
+        <p class="panel-label">Route Selection</p>
+        <form id="bookingForm" novalidate>
+          <div class="field">
+            <label for="routeSelect">Select Route</label>
+            <div class="field__control">
+              <select id="routeSelect" required>
+                <option value="">-- Choose a Route --</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="admin-fields-row">
+            <div class="field">
+              <label for="boardingStop">Boarding Stop</label>
+              <div class="field__control">
+                <select id="boardingStop" required disabled>
+                  <option value="">-- Select Route First --</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="dropOffStop">Drop-off Stop</label>
+              <div class="field__control">
+                <select id="dropOffStop" required disabled>
+                  <option value="">-- Select Route First --</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn" id="bookBtn">
+            <span class="btn__spinner" aria-hidden="true"></span>
+            <span class="btn__label">Confirm Booking</span>
+          </button>
+        </form>
+        <p id="bookingMsg" class="message" role="status" aria-live="polite"></p>
+      </section>
+    </div>
+  </div>
+
+  <script src="/nav.js"></script>
+  <script>
+    const token = localStorage.getItem("authToken") || localStorage.getItem("token") || localStorage.getItem("jwt");
+
+    if (!token) {
+      window.location.href = "/login.html";
+    }
+
+    const apiBase = (window.APP_CONFIG && window.APP_CONFIG.API_BASE) || "";
+    let routesList = [];
+
+    function setMessage(el, text, type) {
+      el.textContent = text;
+      el.className = "message" + (type ? ` is-${type}` : "");
+      if (type === "error") {
+        el.style.animation = "none";
+        void el.offsetWidth;
+        el.style.animation = "";
+      }
+    }
+
+    function clearAuthAndRedirect() {
+      localStorage.removeItem("authToken");
+      localStorage.removeItem("token");
+      localStorage.removeItem("userRole");
+      localStorage.removeItem("role");
+      window.location.href = "/login.html";
+    }
+
+    document.getElementById("logoutBtn").addEventListener("click", clearAuthAndRedirect);
+
+    async function loadRoutes() {
+      try {
+        const res = await fetch(`${apiBase}/api/routes`, {
+          headers: { Authorization: "Bearer " + token }
+        });
+
+        if (res.status === 401) {
+          clearAuthAndRedirect();
+          return;
+        }
+
+        routesList = await res.json();
+        const routeSelect = document.getElementById("routeSelect");
+        routeSelect.innerHTML = '<option value="">-- Choose a Route --</option>';
+
+        routesList.forEach(r => {
+          const routeId = r.id || r.Id;
+          const origin = r.origin || r.Origin || "";
+          const destination = r.destination || r.Destination || "";
+
+          const opt = document.createElement("option");
+          opt.value = routeId;
+          opt.textContent = `${origin} ➔ ${destination}`;
+          routeSelect.appendChild(opt);
+        });
+      } catch (err) {
+        console.error("Failed to load routes:", err);
+      }
+    }
+
+    document.getElementById("routeSelect").addEventListener("change", (e) => {
+      const routeId = parseInt(e.target.value, 10);
+      const boardingSelect = document.getElementById("boardingStop");
+      const dropOffSelect = document.getElementById("dropOffStop");
+
+      if (!routeId) {
+        boardingSelect.disabled = true;
+        dropOffSelect.disabled = true;
+        boardingSelect.innerHTML = '<option value="">-- Select Route First --</option>';
+        dropOffSelect.innerHTML = '<option value="">-- Select Route First --</option>';
+        return;
+      }
+
+      const selectedRoute = routesList.find(r => (r.id || r.Id) === routeId);
+      const stops = selectedRoute ? (selectedRoute.stops || selectedRoute.Stops) : null;
+
+      if (!selectedRoute || !stops || stops.length === 0) {
+        boardingSelect.disabled = true;
+        dropOffSelect.disabled = true;
+        boardingSelect.innerHTML = '<option value="">-- No Stops Available --</option>';
+        dropOffSelect.innerHTML = '<option value="">-- No Stops Available --</option>';
+        return;
+      }
+
+      boardingSelect.innerHTML = '<option value="">-- Select Boarding Stop --</option>';
+      dropOffSelect.innerHTML = '<option value="">-- Select Drop-off Stop --</option>';
+
+      const sortedStops = [...stops].sort((a, b) => (a.order ?? a.Order) - (b.order ?? b.Order));
+
+      sortedStops.forEach(s => {
+        const stopId = s.id || s.Id;
+        const stopName = s.name || s.Name;
+        const stopOrder = (s.order ?? s.Order ?? 0) + 1;
+
+        const bOpt = document.createElement("option");
+        bOpt.value = stopId;
+        bOpt.textContent = `${stopOrder}. ${stopName}`;
+        boardingSelect.appendChild(bOpt);
+
+        const dOpt = document.createElement("option");
+        dOpt.value = stopId;
+        dOpt.textContent = `${stopOrder}. ${stopName}`;
+        dropOffSelect.appendChild(dOpt);
+      });
+
+      boardingSelect.disabled = false;
+      dropOffSelect.disabled = false;
+    });
+
+    document.getElementById("bookingForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const routeId = parseInt(document.getElementById("routeSelect").value, 10);
+      const boardingStopId = parseInt(document.getElementById("boardingStop").value, 10);
+      const dropOffStopId = parseInt(document.getElementById("dropOffStop").value, 10);
+
+      const bookBtn = document.getElementById("bookBtn");
+      const bookingMsg = document.getElementById("bookingMsg");
+
+      if (!routeId || !boardingStopId || !dropOffStopId) {
+        setMessage(bookingMsg, "Please select route, boarding stop, and drop-off stop.", "error");
+        return;
+      }
+
+      if (boardingStopId === dropOffStopId) {
+        setMessage(bookingMsg, "Boarding and drop-off stops cannot be the same.", "error");
+        return;
+      }
+
+      const payload = {
+        routeId: routeId,
+        boardingStopId: boardingStopId,
+        dropOffStopId: dropOffStopId,
+        days: []
+      };
+
+      bookBtn.disabled = true;
+      bookBtn.classList.add("is-loading");
+      setMessage(bookingMsg, "");
+
+      try {
+        const res = await fetch(`${apiBase}/api/bookings`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + token
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.status === 401) {
+          clearAuthAndRedirect();
+          return;
+        }
+
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok) {
+          setMessage(bookingMsg, "Booking confirmed! Redirecting to dashboard...", "success");
+          setTimeout(() => {
+            window.location.href = "/dashboard.html";
+          }, 1200);
+        } else {
+          setMessage(bookingMsg, "Failed: " + JSON.stringify(data.errors || data.message || data), "error");
+        }
+      } catch (err) {
+        console.error(err);
+        setMessage(bookingMsg, "Could not connect to the server.", "error");
+      } finally {
+        bookBtn.disabled = false;
+        bookBtn.classList.remove("is-loading");
+      }
+    });
+
+    loadRoutes();
+  </script>
+</body>
+</html>

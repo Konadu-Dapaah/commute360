@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Commute360</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/auth.css" />
+  <link rel="stylesheet" href="/css/dash.css" />
+  <!-- App config providing Render API_BASE -->
+  <script src="/config.js"></script>
+  <style>
+    .top-nav {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 40px;
+      z-index: 10;
+    }
+    .top-nav__logo {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: #fff;
+      text-decoration: none;
+    }
+    .top-nav__logo span { color: #38bdf8; }
+    .top-nav__links {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+    .top-nav__link {
+      color: rgba(255, 255, 255, 0.85);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .top-nav__link:hover { color: #fff; }
+    .top-nav__btn {
+      background: #38bdf8;
+      color: #0f172a;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: 600;
+      text-decoration: none;
+      font-size: 14px;
+      transition: background 0.2s;
+    }
+    .top-nav__btn:hover { background: #0284c7; color: #fff; }
+
+    .home { min-height: 100vh; display: grid; place-items: center; padding: 24px; padding-top: 80px; }
+    .features { display: grid; gap: 8px; margin: 0 0 28px; padding: 0; list-style: none; font-size: 15px; opacity: .85; }
+  </style>
+</head>
+<body>
+  <header class="top-nav">
+    <a href="/" class="top-nav__logo">Commute<span>360</span></a>
+    
+    <nav class="top-nav__links" id="headerNav">
+      <a href="/login.html" class="top-nav__link">Log in</a>
+      <a href="/register.html" class="top-nav__btn">Register</a>
+    </nav>
+  </header>
+
+  <div class="scene" aria-hidden="true">
+    <div class="scene__grid"></div>
+    <div class="scene__orb scene__orb--a"></div>
+    <div class="scene__orb scene__orb--b"></div>
+    <svg class="route-svg" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice">
+      <path d="M-20 620 C 180 520, 260 680, 420 540 S 620 380, 780 460 S 980 620, 1220 380" />
+      <circle cx="420" cy="540" r="5" />
+      <circle cx="780" cy="460" r="5" style="animation-delay: 0.8s" />
+    </svg>
+  </div>
+
+  <main class="home dash">
+    <div class="panel hero">
+      <h1 class="hero__title">Commute<span>360</span></h1>
+      <p class="hero__text">Your staff bus, on time and in sight. Book your route, watch your bus live and get alerts from your driver.</p>
+
+      <ul class="features">
+        <li>Pick your route, stops and riding days</li>
+        <li>See your bus move on the map in real time</li>
+        <li>Get driver alerts about delays and traffic</li>
+      </ul>
+
+      <div class="hero__actions" id="guestActions">
+        <a class="cta" href="/login.html">Log in</a>
+        <a class="cta cta--ghost" href="/register.html">Register</a>
+      </div>
+
+      <div class="hero__actions" id="memberActions" hidden>
+        <a class="cta" id="continueBtn" href="/login.html">Go to my dashboard</a>
+        <button type="button" class="cta cta--ghost" id="logoutBtn">Sign out</button>
+      </div>
+    </div>
+  </main>
+
+  <script src="/auth.js"></script>
+  <script>
+    (async function () {
+      const token = Auth.token();
+      if (!token) return;
+
+      try {
+        const res = await fetch(Auth.apiBase + "/api/me", {
+          headers: { Authorization: "Bearer " + token }
+        });
+        if (!res.ok) return;
+        const user = await res.json();
+
+        const userHome = Auth.homeFor(user.role);
+
+        document.getElementById("continueBtn").href = userHome;
+        document.getElementById("continueBtn").textContent = `Continue as ${user.name}`;
+        document.getElementById("guestActions").hidden = true;
+        document.getElementById("memberActions").hidden = false;
+
+        const headerNav = document.getElementById("headerNav");
+        headerNav.innerHTML = `<a href="${userHome}" class="top-nav__btn">Dashboard</a>`;
+      } catch (err) {
+        console.error(err);
+      }
+    })();
+
+    document.getElementById("logoutBtn").addEventListener("click", () => {
+      localStorage.removeItem("token");
+      window.location.reload();
+    });
+  </script>
+</body>
+</html>

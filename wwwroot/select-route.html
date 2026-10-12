@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Commute360 — Select Your Route</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/auth.css" />
+  <link rel="stylesheet" href="/css/routes.css" />
+  <!-- Configuration script providing Render API_BASE -->
+  <script src="/config.js"></script>
+</head>
+<body>
+  <div class="scene" aria-hidden="true">
+    <div class="scene__grid"></div>
+    <div class="scene__orb scene__orb--a"></div>
+    <div class="scene__orb scene__orb--b"></div>
+    <svg class="route-svg" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice">
+      <path d="M-20 620 C 180 520, 260 680, 420 540 S 620 380, 780 460 S 980 620, 1220 380" />
+      <path d="M-40 280 C 160 360, 300 180, 480 260 S 720 420, 900 300 S 1080 160, 1240 220" opacity="0.45" />
+      <circle cx="420" cy="540" r="5" />
+      <circle cx="780" cy="460" r="5" style="animation-delay: 0.8s" />
+      <circle cx="900" cy="300" r="5" style="animation-delay: 1.4s" />
+    </svg>
+  </div>
+
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="topbar__brand" href="/routes.html">
+        <div class="brand-mark__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#0a1628" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 16V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8" />
+            <path d="M4 12h16" />
+            <circle cx="7.5" cy="17.5" r="1.5" />
+            <circle cx="16.5" cy="17.5" r="1.5" />
+            <path d="M8 10h2M14 10h2" />
+          </svg>
+        </div>
+        <span class="topbar__name">Commute<span>360</span></span>
+      </a>
+      <div class="topbar__actions">
+        <button type="button" class="ghost-btn" id="logoutBtn">Sign out</button>
+      </div>
+    </header>
+
+    <div class="page-header">
+      <h1>Select your route</h1>
+      <p>Pick a corridor, choose your stops, and lock in the days you ride.</p>
+    </div>
+
+    <div class="layout is-idle" id="layout">
+      <section class="routes-panel">
+        <p class="panel-label">Available routes</p>
+        <div id="routes" class="routes-list" aria-live="polite">
+          <div class="loading-state" id="routesLoading">
+            <div class="loading-state__spinner" aria-hidden="true"></div>
+            Loading routes…
+          </div>
+        </div>
+      </section>
+
+      <section class="booking-panel" id="bookingPanel">
+        <p class="panel-label">Confirm selection</p>
+
+        <div class="booking-placeholder" id="bookingPlaceholder">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="6" cy="19" r="2" />
+            <circle cx="18" cy="5" r="2" />
+            <path d="M8 18.5 16.5 6.5" />
+          </svg>
+          <p>Select a route to choose boarding &amp; drop-off stops.</p>
+        </div>
+
+        <form class="booking-form" id="bookingForm" novalidate>
+          <div class="route-summary">
+            <div class="route-summary__label">Selected route</div>
+            <div class="route-summary__path" id="routeInfo">—</div>
+            <div class="route-summary__time" id="routeTime"></div>
+          </div>
+
+          <div class="stops-row">
+            <div class="field">
+              <label for="boardingStop">Boarding stop</label>
+              <select id="boardingStop" required></select>
+            </div>
+            <div class="field">
+              <label for="dropOffStop">Drop-off stop</label>
+              <select id="dropOffStop" required></select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label>Riding days</label>
+            <div class="days-grid" id="daysGrid">
+              <label class="day-chip"><input type="checkbox" value="Mon" /><span>Mon</span></label>
+              <label class="day-chip"><input type="checkbox" value="Tue" /><span>Tue</span></label>
+              <label class="day-chip"><input type="checkbox" value="Wed" /><span>Wed</span></label>
+              <label class="day-chip"><input type="checkbox" value="Thu" /><span>Thu</span></label>
+              <label class="day-chip"><input type="checkbox" value="Fri" /><span>Fri</span></label>
+            </div>
+          </div>
+
+          <button type="submit" class="btn" id="submitBtn">
+            <span class="btn__spinner" aria-hidden="true"></span>
+            <span class="btn__label">Confirm booking</span>
+          </button>
+
+          <p id="message" class="message" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+    </div>
+  </div>
+  <script src="/nav.js"></script>
+  <script>
+    const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+    if (!token) {
+      window.location.href = "/login.html";
+    }
+
+    let selectedRoute = null;
+
+    const routesEl = document.getElementById("routes");
+    const layoutEl = document.getElementById("layout");
+    const bookingForm = document.getElementById("bookingForm");
+    const bookingPlaceholder = document.getElementById("bookingPlaceholder");
+    const bookingPanel = document.getElementById("bookingPanel");
+    const submitBtn = document.getElementById("submitBtn");
+    const messageEl = document.getElementById("message");
+    const boardingSelect = document.getElementById("boardingStop");
+    const dropOffSelect = document.getElementById("dropOffStop");
+
+    const apiBase = (window.APP_CONFIG && window.APP_CONFIG.API_BASE) || "";
+
+    function setMessage(text, type) {
+      messageEl.textContent = text;
+      messageEl.className = "message" + (type ? ` is-${type}` : "");
+      if (type === "error") {
+        messageEl.style.animation = "none";
+        void messageEl.offsetWidth;
+        messageEl.style.animation = "";
+      }
+    }
+
+    function formatSchedule(value) {
+      if (!value) return "";
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return String(value);
+      return d.toLocaleString(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit"
+      });
+    }
+
+    function selectRoute(route, cardEl) {
+      selectedRoute = route;
+
+      document.querySelectorAll(".route-card").forEach((el) => el.classList.remove("is-selected"));
+      if (cardEl) cardEl.classList.add("is-selected");
+
+      document.getElementById("routeInfo").textContent =
+        `${route.origin} → ${route.destination}`;
+      document.getElementById("routeTime").textContent =
+        formatSchedule(route.scheduleTime);
+
+      boardingSelect.innerHTML = "";
+      dropOffSelect.innerHTML = "";
+
+      const stops = (route.stops || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+      if (stops.length === 0) {
+        boardingSelect.add(new Option("No stops available", ""));
+        dropOffSelect.add(new Option("No stops available", ""));
+      } else {
+        stops.forEach((stop) => {
+          boardingSelect.add(new Option(stop.name, stop.id));
+          dropOffSelect.add(new Option(stop.name, stop.id));
+        });
+        if (stops.length > 1) {
+          dropOffSelect.selectedIndex = stops.length - 1;
+        }
+      }
+
+      document.querySelectorAll("#daysGrid input").forEach((cb) => {
+        cb.checked = false;
+      });
+
+      bookingPlaceholder.style.display = "none";
+      bookingForm.classList.add("is-visible");
+      bookingPanel.classList.add("is-ready");
+      layoutEl.classList.remove("is-idle");
+      setMessage("");
+    }
+
+    async function loadRoutes() {
+      try {
+        const res = await fetch(`${apiBase}/api/routes`, {
+          headers: { Authorization: "Bearer " + token }
+        });
+
+        if (res.status === 401) {
+          localStorage.removeItem("token");
+          window.location.href = "/login.html";
+          return;
+        }
+
+        if (!res.ok) {
+          routesEl.innerHTML = `<div class="empty-state">Couldn’t load routes (${res.status}).</div>`;
+          return;
+        }
+
+        const routes = await res.json();
+        routesEl.innerHTML = "";
+
+        if (!Array.isArray(routes) || routes.length === 0) {
+          routesEl.innerHTML = `<div class="empty-state">No routes available yet. Check back soon.</div>`;
+          return;
+        }
+
+        routes.forEach((route, i) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "route-card";
+          btn.style.animationDelay = `${0.05 * i}s`;
+          btn.innerHTML = `
+            <span class="route-card__index">${String(i + 1).padStart(2, "0")}</span>
+            <span class="route-card__body">
+              <span class="route-card__path">${route.origin} → ${route.destination}</span>
+              <span class="route-card__meta">${formatSchedule(route.scheduleTime)}${route.capacity ? ` · ${route.capacity} seats` : ""}</span>
+            </span>
+            <span class="route-card__arrow" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </span>
+          `;
+          btn.addEventListener("click", () => selectRoute(route, btn));
+          routesEl.appendChild(btn);
+        });
+      } catch (err) {
+        console.error(err);
+        routesEl.innerHTML = `<div class="empty-state">Could not connect. Ensure the API is running.</div>`;
+      }
+    }
+
+    bookingForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!selectedRoute) {
+        setMessage("Please select a route first.", "error");
+        return;
+      }
+
+      const boardingStopId = parseInt(boardingSelect.value, 10);
+      const dropOffStopId = parseInt(dropOffSelect.value, 10);
+
+      const days = Array.from(document.querySelectorAll("#daysGrid input:checked"))
+        .map((cb) => cb.value);
+
+      if (!boardingStopId || !dropOffStopId) {
+        setMessage("Please choose boarding and drop-off stops.", "error");
+        return;
+      }
+
+      if (boardingStopId === dropOffStopId) {
+        setMessage("Boarding and drop-off must be different stops.", "error");
+        return;
+      }
+
+      if (days.length === 0) {
+        setMessage("Pick at least one riding day.", "error");
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.classList.add("is-loading");
+      setMessage("");
+
+      try {
+        const res = await fetch(`${apiBase}/api/bookings`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + token
+          },
+          body: JSON.stringify({
+            routeId: selectedRoute.id,
+            boardingStopId,
+            dropOffStopId,
+            days
+          })
+        });
+
+        if (res.status === 401) {
+          localStorage.removeItem("token");
+          window.location.href = "/login.html";
+          return;
+        }
+
+        if (res.ok) {
+          setMessage("Booking confirmed!", "success");
+        } else {
+          let errorMessage = "Booking failed.";
+          const contentType = res.headers.get("content-type");
+          if (contentType && contentType.includes("application/json")) {
+            const data = await res.json();
+            errorMessage = data.message || data.title || (typeof data === "string" ? data : errorMessage);
+          } else {
+            const text = await res.text();
+            errorMessage = text || `Server returned status ${res.status}`;
+          }
+          setMessage(errorMessage, "error");
+        }
+      } catch (err) {
+        console.error(err);
+        setMessage("Could not connect. Ensure the API is running.", "error");
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove("is-loading");
+      }
+    });
+
+    document.getElementById("logoutBtn").addEventListener("click", () => {
+      localStorage.removeItem("token");
+      localStorage.removeItem("authToken");
+      window.location.href = "/login.html";
+    });
+
+    loadRoutes();
+  </script>
+</body>
+</html>

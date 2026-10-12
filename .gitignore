@@ -1,0 +1,43 @@
+# AWS & Security keys (Safety catch in case a key is accidentally copied here)
+*.pem
+*.cer
+*.crt
+*.key
+
+# ASP.NET Core build outputs & dependencies
+bin/
+obj/
+appsettings.Development.json
+appsettings.Production.json
+appsettings.json
+.env
+*.env
+# IDE / System configuration
+.vs/
+.vscode/
+.DS_Store
+Thumbs.db
+bin/
+obj/
+
+appsettings.Development.json
+.env
+*.pem
+ 
+ bin/ 
+ obj/ 
+ appsettings.Development.json 
+ .env 
+ *.pem
+
+appsettings.Development.json
+.env
+*.pem
+bin/
+obj/
+
+appsettings.Development.json
+.env
+*.pem
+bin/
+obj/

@@ -1,0 +1,49 @@
+
+
+services:
+  db:
+    image: postgres:16
+    container_name: commute360-db-1
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: Commute360
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: commute360-api-1
+    restart: unless-stopped
+    ports:
+      - "5291:80"
+    environment:
+      ConnectionStrings__DefaultConnection: "Host=${DB_HOST};Port=5432;Database=Commute360;Username=postgres;Password=${POSTGRES_PASSWORD}"
+      Jwt__Key: ${JWT_KEY}
+    depends_on:
+       db:
+          condition: service_healthy  
+  caddy:
+    image: caddy:2
+    container_name: commute360-caddy-1
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

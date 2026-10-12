@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Commute360 — My commute</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/auth.css" />
+  <link rel="stylesheet" href="/css/routes.css" />
+  <link rel="stylesheet" href="/css/dash.css" />
+  <!-- App config providing Render API_BASE -->
+  <script src="/config.js"></script>
+</head>
+<body>
+  <div class="scene" aria-hidden="true">
+    <div class="scene__grid"></div>
+    <div class="scene__orb scene__orb--a"></div>
+    <div class="scene__orb scene__orb--b"></div>
+  </div>
+
+  <div class="page-shell dash">
+    <header class="topbar">
+      <a class="topbar__brand" href="/staff-dashboard.html">
+        <span class="topbar__name">Commute<span>360</span></span>
+      </a>
+      <div class="topbar__actions">
+        <button type="button" class="ghost-btn" id="logoutBtn">Sign out</button>
+      </div>
+    </header>
+
+    <div class="page-header">
+      <h1 id="greeting">Welcome</h1>
+      <p>Your route, your days and your bus, all in one place.</p>
+    </div>
+
+    <div class="banner banner--warn" id="verifyBanner" hidden>
+      <span><span class="banner__title">Verify your email.</span> We sent you a link when you registered.</span>
+      <span><button type="button" class="mini-btn" id="resendBtn">Resend email</button></span>
+    </div>
+
+    <nav class="tabs">
+      <button type="button" class="tab is-active" data-tab="dashboard">Dashboard</button>
+      <button type="button" class="tab" data-tab="week">My week</button>
+      <a class="tab" href="/routes.html">Book or change route</a>
+      <a class="tab" href="/track.html">Track my bus</a>
+      <a class="tab" href="/account.html">Account</a>
+    </nav>
+
+    <!-- ===== Dashboard ===== -->
+    <section id="tab-dashboard" class="stack">
+      <div class="panel" id="announcePanel" hidden>
+        <h2>Announcements</h2>
+        <div class="stack" id="announceList"></div>
+      </div>
+
+      <div class="panel" id="waitPanel" hidden>
+        <h2>Waitlist</h2>
+        <div class="stack" id="waitList"></div>
+      </div>
+
+      <div class="panel" id="noBooking" hidden>
+        <h2>No route yet</h2>
+        <p>You haven't booked a route. Pick your route, stops and riding days to get started.</p>
+        <a class="cta" href="/routes.html">Choose a route</a>
+      </div>
+
+      <div id="bookingCards" class="stack" hidden>
+        <div class="stats">
+          <div class="stat"><div class="stat__num" id="nextDay">–</div><div class="stat__label">Next ride</div></div>
+          <div class="stat"><div class="stat__num" id="departTime">–</div><div class="stat__label">Departure time</div></div>
+          <div class="stat"><div class="stat__num" id="dayCount">–</div><div class="stat__label">Riding days per week</div></div>
+        </div>
+
+        <div class="panel">
+          <h2>My route</h2>
+          <p style="font-size:20px;font-weight:700;margin:0 0 10px" id="routeName">–</p>
+          <div class="scroll">
+            <table class="data">
+              <tbody>
+                <tr><th>Boarding stop</th><td id="boardStop">–</td></tr>
+                <tr><th>Drop-off stop</th><td id="dropStop">–</td></tr>
+                <tr><th>Riding days</th><td id="ridingDays">–</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+            <a class="cta" href="/track.html">Track my bus</a>
+            <a class="cta cta--ghost" href="/routes.html">Change route</a>
+            <button type="button" class="cta cta--ghost" id="cancelBtn">Cancel booking</button>
+          </p>
+        </div>
+      </div>
+      <p class="msg is-error" id="errorMsg"></p>
+    </section>
+
+    <!-- ===== My week ===== -->
+    <section id="tab-week" class="stack" hidden>
+      <div class="panel">
+        <h2>My week</h2>
+        <p class="muted" id="weekNote">Green days are the days you ride. Not coming on a particular day? Skip it so the driver knows.</p>
+        <p class="msg" id="weekMsg" role="status"></p>
+        <div id="weeks"></div>
+      </div>
+    </section>
+  </div>
+
+  <script src="/auth.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const JS_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const FULL = { Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday" };
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+    let booking = null;
+    let rideDays = [];
+    let skipped = new Set();
+
+    function h(tag, props = {}, ...kids) {
+      const el = document.createElement(tag);
+      for (const [k, v] of Object.entries(props)) {
+        if (k === "class") el.className = v;
+        else if (k === "text") el.textContent = v;
+        else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+        else el.setAttribute(k, v);
+      }
+      kids.flat().forEach((c) => el.append(c));
+      return el;
+    }
+
+    const pad = (n) => String(n).padStart(2, "0");
+    const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+    function timeOf(value) {
+      const d = new Date(value);
+      return Number.isNaN(d.getTime())
+        ? "—"
+        : d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    }
+
+    async function readError(res) {
+      try {
+        const type = res.headers.get("content-type") || "";
+        if (type.includes("json")) {
+          const d = await res.json();
+          if (d.errors) return Object.values(d.errors).flat().join(" ");
+          return d.message || d.title || `Error ${res.status}`;
+        }
+        return (await res.text()) || `Error ${res.status}`;
+      } catch {
+        return `Error ${res.status}`;
+      }
+    }
+
+    function setMsg(el, text, type) {
+      el.textContent = text;
+      el.className = "msg" + (type ? ` is-${type}` : "");
+    }
+
+    function nextRide() {
+      const t = new Date(booking.route.scheduleTime);
+      const now = new Date();
+      for (let i = 0; i < 15; i++) {
+        const d = new Date(now);
+        d.setDate(now.getDate() + i);
+        if (!rideDays.includes(JS_DAYS[d.getDay()]) || skipped.has(ymd(d))) continue;
+        const dep = new Date(d);
+        dep.setHours(t.getHours(), t.getMinutes(), 0, 0);
+        if (dep > now) return i === 0 ? "Today" : i === 1 ? "Tomorrow" : FULL[JS_DAYS[d.getDay()]];
+      }
+      return "—";
+    }
+
+    function showTab(name) {
+      document.querySelectorAll(".tab[data-tab]").forEach((b) => b.classList.toggle("is-active", b.dataset.tab === name));
+      $("tab-dashboard").hidden = name !== "dashboard";
+      $("tab-week").hidden = name !== "week";
+    }
+    document.querySelectorAll(".tab[data-tab]").forEach((btn) => btn.addEventListener("click", () => showTab(btn.dataset.tab)));
+    $("logoutBtn").addEventListener("click", () => Auth.logout());
+
+    function renderWeek() {
+      const box = $("weeks");
+      box.innerHTML = "";
+
+      if (!booking) {
+        $("weekNote").textContent = "You haven't booked a route yet, so there's nothing scheduled.";
+        return;
+      }
+
+      const now = new Date();
+      const todayStr = ymd(now);
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+      const departed = (() => {
+        const t = new Date(booking.route.scheduleTime);
+        return now.getHours() * 60 + now.getMinutes() >= t.getHours() * 60 + t.getMinutes();
+      })();
+
+      ["This week", "Next week"].forEach((title, w) => {
+        const grid = h("div", { class: "week" });
+        for (let i = 0; i < 5; i++) {
+          const d = new Date(monday);
+          d.setDate(monday.getDate() + w * 7 + i);
+          const key = ymd(d);
+          const name = JS_DAYS[d.getDay()];
+          const riding = rideDays.includes(name);
+          const isSkipped = skipped.has(key);
+          const isToday = key === todayStr;
+          const isPast = key < todayStr || (isToday && departed);
+
+          const card = h("div", {
+            class: "day" + (riding && !isSkipped ? " is-riding" : "") + (isSkipped ? " is-skipped" : "") + (isToday ? " is-today" : "")
+          }, h("div", { class: "day__name" }, FULL[name], isToday ? h("span", { class: "day__tag", text: "Today" }) : ""),
+             h("div", { class: "muted", text: `${d.getDate()} ${MONTHS[d.getMonth()]}` }));
+
+          if (!riding) {
+            card.append(h("div", { class: "muted", text: "Not riding" }));
+          } else {
+            card.append(
+              h("div", { text: isSkipped ? "Skipping this day" : `Departs ${timeOf(booking.route.scheduleTime)}` }),
+              h("div", { class: "muted", text: `${booking.boardingStop?.name ?? "—"} → ${booking.dropOffStop?.name ?? "—"}` })
+            );
+            if (!isPast) {
+              card.append(h("button", {
+                class: "mini-btn", type: "button",
+                text: isSkipped ? "Undo skip" : "Skip this day",
+                onclick: () => toggleSkip(key, isSkipped)
+              }));
+            }
+          }
+          grid.append(card);
+        }
+        box.append(h("div", { class: "week-title", text: title }), grid);
+      });
+    }
+
+    async function toggleSkip(dateKey, currentlySkipped) {
+      const msg = $("weekMsg");
+      try {
+        const res = currentlySkipped
+          ? await Auth.api(`/api/rides/skip?date=${dateKey}`, { method: "DELETE" })
+          : await Auth.api("/api/rides/skip", { method: "POST", body: JSON.stringify({ date: dateKey }) });
+
+        if (!res.ok) { setMsg(msg, await readError(res), "error"); return; }
+
+        if (currentlySkipped) skipped.delete(dateKey); else skipped.add(dateKey);
+        setMsg(msg, currentlySkipped ? "Skip removed." : "Got it. The driver's headcount will leave you out that day.", "success");
+        $("nextDay").textContent = nextRide();
+        renderWeek();
+      } catch (err) {
+        if (err.message !== "Unauthorized") setMsg(msg, "Could not reach the server.", "error");
+      }
+    }
+
+    async function loadAnnouncements() {
+      try {
+        const res = await Auth.api("/api/announcements");
+        if (!res.ok) return;
+        const items = await res.json();
+        $("announceList").innerHTML = "";
+        $("announcePanel").hidden = items.length === 0;
+        items.forEach((a) => {
+          const when = new Date(a.createdAt).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
+          $("announceList").append(h("div", { class: "announce" },
+            h("div", { text: a.message }), h("div", { class: "announce__time", text: when })));
+        });
+      } catch (err) {
+        if (err.message !== "Unauthorized") console.error(err);
+      }
+    }
+
+    async function loadWaitlist() {
+      try {
+        const res = await Auth.api("/api/waitlist/mine");
+        if (!res.ok) return;
+        const items = await res.json();
+        $("waitList").innerHTML = "";
+        $("waitPanel").hidden = items.length === 0;
+        items.forEach((w) => {
+          $("waitList").append(h("div", { class: "form-row" },
+            h("span", { text: `${w.origin} → ${w.destination}: you are #${w.position} on the waitlist.` }),
+            h("button", { class: "mini-btn", type: "button", text: "Leave waitlist", onclick: async () => {
+              await Auth.api(`/api/waitlist/${w.id}`, { method: "DELETE" });
+              loadWaitlist();
+            } })));
+        });
+      } catch (err) {
+        if (err.message !== "Unauthorized") console.error(err);
+      }
+    }
+
+    $("cancelBtn").addEventListener("click", async () => {
+      if (!booking || !confirm("Cancel your booking? Your seat will be released.")) return;
+      try {
+        const res = await Auth.api(`/api/bookings/${booking.id}`, { method: "DELETE" });
+        if (res.ok) window.location.reload();
+        else $("errorMsg").textContent = await readError(res);
+      } catch (err) {
+        if (err.message !== "Unauthorized") $("errorMsg").textContent = "Could not reach the server.";
+      }
+    });
+
+    $("resendBtn").addEventListener("click", async () => {
+      $("resendBtn").disabled = true;
+      try {
+        const res = await Auth.api("/api/account/resend-verification", { method: "POST" });
+        $("resendBtn").textContent = res.ok ? "Sent. Check your inbox" : "Try again later";
+      } catch { /* ignore */ }
+    });
+
+    (async function init() {
+      try {
+        const user = await Auth.requireRole(["Staff"]);
+        $("greeting").textContent = `Welcome, ${user.name}`;
+        $("verifyBanner").hidden = user.emailVerified !== false;
+
+        loadAnnouncements();
+        loadWaitlist();
+        setInterval(() => { if (!document.hidden) loadAnnouncements(); }, 60000);
+
+        const res = await Auth.api("/api/bookings/mine");
+        if (!res.ok) throw new Error(`Couldn't load your booking (${res.status}).`);
+        const bookings = await res.json();
+        booking = bookings.find((b) => b.status === "Confirmed") || null;
+
+        if (!booking) {
+          $("noBooking").hidden = false;
+          renderWeek();
+          return;
+        }
+
+        rideDays = (booking.days || "").split(",").map((d) => d.trim()).filter(Boolean);
+        const route = booking.route;
+
+        const skipRes = await Auth.api("/api/rides/skips");
+        if (skipRes.ok) skipped = new Set(await skipRes.json());
+
+        $("bookingCards").hidden = false;
+        $("routeName").textContent = `${route.origin} → ${route.destination}`;
+        $("boardStop").textContent = booking.boardingStop?.name ?? "—";
+        $("dropStop").textContent = booking.dropOffStop?.name ?? "—";
+        $("ridingDays").textContent = rideDays.join(", ") || "—";
+        $("departTime").textContent = timeOf(route.scheduleTime);
+        $("dayCount").textContent = rideDays.length;
+        $("nextDay").textContent = nextRide();
+
+        renderWeek();
+      } catch (err) {
+        if (!["Unauthorized", "Wrong role"].includes(err.message)) {
+          $("errorMsg").textContent = err.message || "Something went wrong.";
+        }
+      }
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Commute360 — Register</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/auth.css" />
+  <!-- Shared config for live Render API base URL -->
+  <script src="/config.js"></script>
+</head>
+<body>
+  <script src="/nav.js"></script>
+
+  <div class="scene" aria-hidden="true">
+    <div class="scene__grid"></div>
+    <div class="scene__orb scene__orb--a"></div>
+    <div class="scene__orb scene__orb--b"></div>
+    <svg class="route-svg" viewBox="0 0 1200 800" preserveAspectRatio="xMidYMid slice">
+      <path d="M-20 620 C 180 520, 260 680, 420 540 S 620 380, 780 460 S 980 620, 1220 380" />
+      <path d="M-40 280 C 160 360, 300 180, 480 260 S 720 420, 900 300 S 1080 160, 1240 220" opacity="0.45" />
+      <circle cx="420" cy="540" r="5" />
+      <circle cx="780" cy="460" r="5" style="animation-delay: 0.8s" />
+      <circle cx="900" cy="300" r="5" style="animation-delay: 1.4s" />
+    </svg>
+  </div>
+
+  <main class="shell">
+    <section class="brand-panel">
+      <div class="brand-mark">
+        <div class="brand-mark__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#0a1628" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 16V8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8" />
+            <path d="M4 12h16" />
+            <circle cx="7.5" cy="17.5" r="1.5" />
+            <circle cx="16.5" cy="17.5" r="1.5" />
+            <path d="M8 10h2M14 10h2" />
+          </svg>
+        </div>
+      </div>
+      <h1 class="brand-name">Commute<span>360</span></h1>
+      <p class="brand-tagline">Live routes, smarter stops, and arrivals that meet you where you are.</p>
+      <div class="brand-meta">
+        <div><strong>Live</strong> bus tracking</div>
+        <div><strong>Smart</strong> stop alerts</div>
+        <div><strong>One</strong> commute hub</div>
+      </div>
+    </section>
+
+    <section class="form-panel">
+      <div class="auth-box">
+        <h2 class="auth-box__title">Create your account</h2>
+        <p class="auth-box__subtitle">Join Commute360 to book routes or track as a driver.</p>
+
+        <form id="registerForm" novalidate>
+          <div class="field">
+            <label for="name">Full name</label>
+            <div class="field__control">
+              <input type="text" id="name" name="name" placeholder="John Doe" autocomplete="name" required />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="email">Email</label>
+            <div class="field__control">
+              <input type="email" id="email" name="email" placeholder="you@example.com" autocomplete="email" required />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="password">Password</label>
+            <div class="field__control">
+              <input type="password" id="password" name="password" placeholder="••••••••" autocomplete="new-password" required />
+              <button type="button" class="field__toggle" id="togglePassword" aria-label="Show password">
+                <svg id="eyeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="role">Register as</label>
+            <div class="field__control">
+              <select id="role" name="role" required>
+                <option value="Staff">Staff</option>
+                <option value="Driver">Driver</option>
+              </select>
+            </div>
+          </div>
+
+          <button type="submit" class="btn" id="submitBtn">
+            <span class="btn__spinner" aria-hidden="true"></span>
+            <span class="btn__label">Register</span>
+          </button>
+        </form>
+
+        <p id="message" class="message" role="status" aria-live="polite"></p>
+
+        <p class="switch">
+          Already have an account?
+          <a href="/login.html">Sign in</a>
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const passwordInput = document.getElementById("password");
+    const toggleBtn = document.getElementById("togglePassword");
+    const eyeIcon = document.getElementById("eyeIcon");
+    const submitBtn = document.getElementById("submitBtn");
+    const messageEl = document.getElementById("message");
+
+    const eyeOpenSvg = `<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>`;
+    const eyeOffSvg = `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>`;
+
+    toggleBtn.addEventListener("click", () => {
+      const showing = passwordInput.type === "text";
+      passwordInput.type = showing ? "password" : "text";
+      toggleBtn.setAttribute("aria-label", showing ? "Show password" : "Hide password");
+      eyeIcon.innerHTML = showing ? eyeOpenSvg : eyeOffSvg;
+    });
+
+    function setMessage(text, type) {
+      messageEl.textContent = text;
+      messageEl.className = "message" + (type ? ` is-${type}` : "");
+      if (type === "error") {
+        messageEl.style.animation = "none";
+        void messageEl.offsetWidth;
+        messageEl.style.animation = "";
+      }
+    }
+
+    document.getElementById("registerForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const name = document.getElementById("name").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const password = passwordInput.value;
+      const role = document.getElementById("role").value;
+
+      if (!name || !email || !password) {
+        setMessage("Please fill in all fields.", "error");
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.classList.add("is-loading");
+      setMessage("");
+
+      // Resolve base URL from config.js or fallback dynamically
+      const baseUrl = (window.APP_CONFIG && window.APP_CONFIG.API_BASE) || window.CONFIG?.API_BASE || "";
+      const apiUrl = `${baseUrl}/api/auth/register`;
+
+      try {
+        const response = await fetch(apiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, email, password, role })
+        });
+
+        if (response.ok) {
+          setMessage("Registration successful! Redirecting to login…", "success");
+          setTimeout(() => {
+            window.location.href = "/login.html";
+          }, 900);
+        } else {
+          let errorMessage = "Registration failed.";
+          const contentType = response.headers.get("content-type");
+
+          if (contentType && contentType.includes("application/json")) {
+            const errorData = await response.json();
+            errorMessage = errorData.message || errorData.title || errorMessage;
+          } else {
+            const textErr = await response.text();
+            errorMessage = textErr || `Server returned status ${response.status}`;
+          }
+          setMessage(errorMessage, "error");
+        }
+      } catch (err) {
+        console.error("Fetch error details:", err);
+        setMessage("Could not connect. Please try again.", "error");
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.classList.remove("is-loading");
+      }
+    });
+  </script>
+</body>
+</html>
