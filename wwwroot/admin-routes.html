@@ -7,13 +7,13 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/css/auth.css" />
-  <link rel="stylesheet" href="/css/routes.css" />
-  <link rel="stylesheet" href="/css/dash.css" />
+  <link rel="stylesheet" href="css/auth.css" />
+  <link rel="stylesheet" href="css/routes.css" />
+  <link rel="stylesheet" href="css/dash.css" />
   
   <!-- Configuration & Authentication scripts loaded early in HEAD -->
-  <script src="/config.js"></script>
-  <script src="/auth.js"></script>
+  <script src="config.js"></script>
+  <script src="auth.js"></script>
 
   <style>
     body { overflow-x: hidden; }
@@ -42,12 +42,12 @@
 
   <div class="page-shell dash">
     <header class="topbar">
-      <a class="topbar__brand" href="/admin-dashboard.html">
+      <a class="topbar__brand" href="admin-dashboard.html">
         <span class="topbar__name">Commute<span>360</span> · Admin</span>
       </a>
       <div class="topbar__actions">
         <!-- Back to Dashboard Option -->
-        <a class="ghost-btn" href="/admin-dashboard.html">← Back to Dashboard</a>
+        <a class="ghost-btn" href="admin-dashboard.html">← Back to Dashboard</a>
         <button type="button" class="ghost-btn" id="logoutBtn">Sign out</button>
       </div>
     </header>
@@ -146,6 +146,7 @@
   </div>
 
   <script>
+    const apiBase = (window.APP_CONFIG && window.APP_CONFIG.API_BASE) || "";
     let me = null;
 
     function setMessage(el, text, type) {
@@ -326,6 +327,7 @@
     });
 
     // ---------- Submit Add Stop ----------
+    // ---------- Submit Add Stop ----------
     document.getElementById("stopForm").addEventListener("submit", async (e) => {
       e.preventDefault();
 
@@ -369,18 +371,3 @@
         stopBtn.disabled = false;
       }
     });
-
-    // Initialize on page load
-    (async function init() {
-      try {
-        await Auth.requireRole(["Admin"]);
-        loadRouteList();
-      } catch (err) {
-        if (!["Unauthorized", "Wrong role"].includes(err.message)) {
-          console.error(err);
-        }
-      }
-    })();
-  </script>
-</body>
-</html>
