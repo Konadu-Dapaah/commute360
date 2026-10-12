@@ -107,6 +107,7 @@
     let lastAlertId = 0;
     let stopsOrdered = [];
     let myBooking = null;
+    let hasAlertedNearStop = false;
 
     async function api(path) {
       if (window.Auth && typeof window.Auth.api === "function") {
@@ -203,7 +204,6 @@
           }
         } catch (err) {
           console.warn("OSRM road routing fallback triggered:", err);
-          // Fallback straight path if network fails
           const fallbackPath = stops.map((s) => ({ lat: s.latitude, lng: s.longitude }));
           new google.maps.Polyline({
             map: map,
@@ -274,6 +274,27 @@
       return 2 * R * Math.asin(Math.sqrt(x));
     }
 
+    function triggerNotification(stopName, distanceKm) {
+      if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
+
+      if (window.Notification && Notification.permission === "granted") {
+        new Notification("Bus Approaching! 🚌", {
+          body: `Your bus is about ${distanceKm.toFixed(1)} km away from ${stopName}. Get ready!`,
+          icon: "/favicon.ico"
+        });
+      }
+
+      const alertList = $("alertList");
+      const li = document.createElement("li");
+      li.className = "alert alert--warn is-new";
+      li.innerHTML = `
+        <div class="alert__head">PROXIMITY ALERT · NEAR BOARDING</div>
+        <div>Your bus is approaching <strong>${stopName}</strong> (~${distanceKm.toFixed(1)} km away)!</div>
+      `;
+      alertList.prepend(li);
+      $("alertEmpty").hidden = true;
+    }
+
     function updateEta(d, stale) {
       const box = $("etaBox");
       if (!myBooking || stopsOrdered.length < 2 || stale) { box.hidden = true; return; }
@@ -285,9 +306,17 @@
       const pts = stopsOrdered.map((s) => ({ lat: s.latitude, lng: s.longitude }));
       box.hidden = false;
 
-      if (km(bus, pts[boardIdx]) < 0.15) {
+      const distToBoarding = km(bus, pts[boardIdx]);
+
+      if (distToBoarding < 0.15) {
         box.textContent = "Your bus is at your boarding stop.";
         return;
+      }
+
+      // Trigger notification when bus is within 1 km of the boarding stop
+      if (distToBoarding <= 1.0 && !hasAlertedNearStop) {
+        hasAlertedNearStop = true;
+        triggerNotification(stopsOrdered[boardIdx].name, distToBoarding);
       }
 
       let nearest = 0;
@@ -305,7 +334,7 @@
       const minutes = Math.max(1, Math.round((dist * 1.3) / speed * 60));
 
       box.textContent =
-        `Estimated arrival at ${stopsOrdered[boardIdx].name}: about ${minutes} min (${dist.toFixed(1)} km away). This is an estimate.`;
+        `Estimated arrival at ${stopsOrdered[boardIdx].name}: about ${minutes} min (${dist.toFixed(1)} km away).`;
     }
 
     async function pollLocation() {
@@ -369,6 +398,11 @@
 
     async function init() {
       try {
+        // Request browser notification permission on page load
+        if (window.Notification && Notification.permission !== "granted") {
+          Notification.requestPermission();
+        }
+
         const bookings = await (await api("/api/bookings/mine")).json();
         const booking = bookings.find((b) => b.status === "Confirmed");
 
