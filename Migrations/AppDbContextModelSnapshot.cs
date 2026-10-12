@@ -97,6 +97,9 @@ namespace Commute360.Migrations
                     b.Property<int>("BoardingStopId")
                         .HasColumnType("integer");
 
+                    b.Property<int>("BoardingsCount")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -108,6 +111,9 @@ namespace Commute360.Migrations
                         .HasColumnType("integer");
 
                     b.Property<int>("RouteId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SkipsCount")
                         .HasColumnType("integer");
 
                     b.Property<string>("Status")
@@ -245,6 +251,9 @@ namespace Commute360.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("BookedRidersCount")
+                        .HasColumnType("integer");
+
                     b.Property<int>("Capacity")
                         .HasColumnType("integer");
 
@@ -333,6 +342,12 @@ namespace Commute360.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("BoardingCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("DropOffCount")
+                        .HasColumnType("integer");
+
                     b.Property<double>("Latitude")
                         .HasColumnType("double precision");
 
@@ -363,6 +378,9 @@ namespace Commute360.Migrations
                         .HasColumnType("integer");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Email")
                         .IsRequired()
