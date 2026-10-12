@@ -168,36 +168,15 @@
       });
 
       if (stops.length >= 2) {
-        // Use DirectionsService to snap route path precisely to actual roads and highways
-        const directionsService = new google.maps.DirectionsService();
-        const directionsRenderer = new google.maps.DirectionsRenderer({
+        // Map stop coordinates into a clean route path line
+        const path = stops.map((s) => ({ lat: s.latitude, lng: s.longitude }));
+
+        new google.maps.Polyline({
           map: map,
-          suppressMarkers: true, // Keep our custom styled stop markers
-          polylineOptions: {
-            strokeColor: "#38bdf8",
-            strokeOpacity: 0.9,
-            strokeWeight: 5
-          }
-        });
-
-        const origin = { lat: stops[0].latitude, lng: stops[0].longitude };
-        const destination = { lat: stops[stops.length - 1].latitude, lng: stops[stops.length - 1].longitude };
-        const waypoints = stops.slice(1, -1).map(s => ({
-          location: { lat: s.latitude, lng: s.longitude },
-          stopover: true
-        }));
-
-        directionsService.route({
-          origin: origin,
-          destination: destination,
-          waypoints: waypoints,
-          travelMode: google.maps.TravelMode.DRIVING
-        }, (response, status) => {
-          if (status === "OK") {
-            directionsRenderer.setDirections(response);
-          } else {
-            console.error("Directions request failed: " + status);
-          }
+          path: path,
+          strokeColor: "#38bdf8",
+          strokeOpacity: 0.9,
+          strokeWeight: 5
         });
 
         // Drop custom stop markers
@@ -210,8 +189,12 @@
             content: makeStopEl(String(i + 1), kind)
           });
         });
+
+        const bounds = new google.maps.LatLngBounds();
+        stops.forEach(s => bounds.extend({ lat: s.latitude, lng: s.longitude }));
+        map.fitBounds(bounds, 60);
       } else {
-        $("tripInfo").textContent += " (This route needs at least 2 stops with coordinates to draw a road route.)";
+        $("tripInfo").textContent += " (This route needs at least 2 stops with coordinates to draw a path.)";
       }
     }
 
