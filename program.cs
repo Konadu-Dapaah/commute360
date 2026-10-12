@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -15,16 +16,29 @@ using Swashbuckle.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Configure CORS Policy
+// Bind to 0.0.0.0 so external requests work on Render. Falls back to port 5291 locally.
+var port = Environment.GetEnvironmentVariable("PORT") ?? "5291";
+builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+
+// 1. CORS Policy
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy("Frontend", policy =>
     {
-        policy.SetIsOriginAllowed(_ => true)
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+        if (allowedOrigins.Length > 0)
+            policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod().AllowCredentials();
+        else
+            policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
     });
+});
+
+// Configure Forwarded Headers for Render proxy
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
 });
 
 // 2. Add controllers and JSON options
@@ -44,12 +58,22 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<PasswordService>();
-builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
+builder.Services.AddHttpClient();
+
+// Brevo (HTTPS) email sender when BrevoApiKey is configured, otherwise fallback to SMTP
+builder.Services.AddScoped<IEmailSender>(sp =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    return !string.IsNullOrWhiteSpace(config["Email:BrevoApiKey"])
+        ? ActivatorUtilities.CreateInstance<BrevoEmailSender>(sp)
+        : ActivatorUtilities.CreateInstance<SmtpEmailSender>(sp);
+});
+
 builder.Services.AddScoped<AccountMailer>();
 builder.Services.AddHealthChecks();
 builder.Services.AddSignalR();
 
-// Rate limiting
+// Rate limiting for authentication endpoints
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -106,6 +130,8 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
+
 // 4. Database Migration
 using (var scope = app.Services.CreateScope())
 {
@@ -123,18 +149,6 @@ using (var scope = app.Services.CreateScope())
 }
 
 // 5. Global Middleware Pipeline
-app.UseCors("AllowAll");
-
-app.Use(async (context, next) =>
-{
-    if (context.Request.Method == "OPTIONS")
-    {
-        context.Response.StatusCode = StatusCodes.Status200OK;
-        return;
-    }
-    await next();
-});
-
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -145,6 +159,8 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.UseRouting();
+app.UseCors("Frontend");
+
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
