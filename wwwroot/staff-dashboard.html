@@ -164,7 +164,7 @@
       for (let i = 0; i < 15; i++) {
         const d = new Date(now);
         d.setDate(now.getDate() + i);
-        if (!rideDays.includes(JS_DAYS[d.getDay()]) || skipped.has(ymd(d))) continue;
+        if (!rideDays.includes(JS_DAYS[d.getDay()].toLowerCase()) || skipped.has(ymd(d))) continue;
         const dep = new Date(d);
         dep.setHours(t.getHours(), t.getMinutes(), 0, 0);
         if (dep > now) return i === 0 ? "Today" : i === 1 ? "Tomorrow" : FULL[JS_DAYS[d.getDay()]];
@@ -205,7 +205,7 @@
           d.setDate(monday.getDate() + w * 7 + i);
           const key = ymd(d);
           const name = JS_DAYS[d.getDay()];
-          const riding = rideDays.includes(name);
+          const riding = rideDays.includes(name.toLowerCase());
           const isSkipped = skipped.has(key);
           const isToday = key === todayStr;
           const isPast = key < todayStr || (isToday && departed);
@@ -331,7 +331,9 @@
           return;
         }
 
-        rideDays = (booking.days || "").split(",").map((d) => d.trim()).filter(Boolean);
+        rideDays = (booking.days || "").split(",")
+          .map((d) => d.trim().toLowerCase())
+          .filter(Boolean);
         const route = booking.route;
 
         const skipRes = await Auth.api("/api/rides/skips");
@@ -341,7 +343,7 @@
         $("routeName").textContent = `${route.origin} → ${route.destination}`;
         $("boardStop").textContent = booking.boardingStop?.name ?? "—";
         $("dropStop").textContent = booking.dropOffStop?.name ?? "—";
-        $("ridingDays").textContent = rideDays.join(", ") || "—";
+        $("ridingDays").textContent = rideDays.map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(", ") || "—";
         $("departTime").textContent = timeOf(route.scheduleTime);
         $("dayCount").textContent = rideDays.length;
         $("nextDay").textContent = nextRide();
