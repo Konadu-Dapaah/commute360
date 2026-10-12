@@ -167,11 +167,40 @@
         mapTypeControl: false
       });
 
-      if (stops.length) {
-        const path = stops.map((s) => ({ lat: s.latitude, lng: s.longitude }));
-        new google.maps.Polyline({ map, path, strokeColor: "#38bdf8", strokeOpacity: 0.9, strokeWeight: 5 });
+      if (stops.length >= 2) {
+        // Use DirectionsService to snap route path precisely to actual roads and highways
+        const directionsService = new google.maps.DirectionsService();
+        const directionsRenderer = new google.maps.DirectionsRenderer({
+          map: map,
+          suppressMarkers: true, // Keep our custom styled stop markers
+          polylineOptions: {
+            strokeColor: "#38bdf8",
+            strokeOpacity: 0.9,
+            strokeWeight: 5
+          }
+        });
 
-        const bounds = new google.maps.LatLngBounds();
+        const origin = { lat: stops[0].latitude, lng: stops[0].longitude };
+        const destination = { lat: stops[stops.length - 1].latitude, lng: stops[stops.length - 1].longitude };
+        const waypoints = stops.slice(1, -1).map(s => ({
+          location: { lat: s.latitude, lng: s.longitude },
+          stopover: true
+        }));
+
+        directionsService.route({
+          origin: origin,
+          destination: destination,
+          waypoints: waypoints,
+          travelMode: google.maps.TravelMode.DRIVING
+        }, (response, status) => {
+          if (status === "OK") {
+            directionsRenderer.setDirections(response);
+          } else {
+            console.error("Directions request failed: " + status);
+          }
+        });
+
+        // Drop custom stop markers
         stops.forEach((s, i) => {
           const kind = s.id === booking.boardingStopId ? "board" : s.id === booking.dropOffStopId ? "drop" : "";
           new AdvancedMarkerElement({
@@ -180,11 +209,9 @@
             title: s.name,
             content: makeStopEl(String(i + 1), kind)
           });
-          bounds.extend({ lat: s.latitude, lng: s.longitude });
         });
-        map.fitBounds(bounds, 60);
       } else {
-        $("tripInfo").textContent += " (This route's stops have no coordinates yet, so only the bus will show.)";
+        $("tripInfo").textContent += " (This route needs at least 2 stops with coordinates to draw a road route.)";
       }
     }
 
