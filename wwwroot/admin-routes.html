@@ -233,14 +233,18 @@
     async function loadRouteList() {
       try {
         const res = await Auth.api("/api/routes");
-        if (!res.ok) return;
-
-        const routes = await res.json();
         const container = document.getElementById("routeList");
         if (!container) return;
 
+        if (!res.ok) {
+          container.innerHTML = `<p class='message is-error'>Failed to load routes (Status: ${res.status}).</p>`;
+          return;
+        }
+
+        const routes = await res.json();
+
         container.innerHTML = "";
-        if (routes.length === 0) {
+        if (!Array.isArray(routes) || routes.length === 0) {
           container.innerHTML = "<p class='muted'>No routes found.</p>";
           return;
         }
@@ -267,6 +271,10 @@
         });
       } catch (err) {
         console.error("Failed to load routes:", err);
+        const container = document.getElementById("routeList");
+        if (container) {
+          container.innerHTML = "<p class='message is-error'>Could not connect to API server.</p>";
+        }
       }
     }
 
@@ -295,8 +303,8 @@
       const routeBtn = document.getElementById("routeBtn");
       const routeMsg = document.getElementById("routeMsg");
 
-      if (!origin || !destination || !scheduleTimeInput || !capacity) {
-        setMessage(routeMsg, "Please fill in all route fields.", "error");
+      if (!origin || !destination || !scheduleTimeInput || Number.isNaN(capacity)) {
+        setMessage(routeMsg, "Please fill in all route fields correctly.", "error");
         return;
       }
 
@@ -311,9 +319,13 @@
         });
 
         if (res.ok) {
-          const data = await res.json();
-          setMessage(routeMsg, `Created route ID: ${data.id}`, "success");
-          document.getElementById("routeId").value = data.id;
+          let data = {};
+          try { data = await res.json(); } catch (_) { /* handle empty responses gracefully */ }
+          
+          setMessage(routeMsg, `Route successfully created!`, "success");
+          if (data.id) {
+            document.getElementById("routeId").value = data.id;
+          }
           document.getElementById("routeForm").reset();
           loadRouteList();
         } else {
@@ -326,7 +338,6 @@
       }
     });
 
-    // ---------- Submit Add Stop ----------
     // ---------- Submit Add Stop ----------
     document.getElementById("stopForm").addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -371,3 +382,9 @@
         stopBtn.disabled = false;
       }
     });
+
+    // Load existing routes upon page load
+    loadRouteList();
+  </script>
+</body>
+</html>
