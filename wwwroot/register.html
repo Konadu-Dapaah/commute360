@@ -82,16 +82,6 @@
             </div>
           </div>
 
-          <div class="field">
-            <label for="role">Register as</label>
-            <div class="field__control">
-              <select id="role" name="role" required>
-                <option value="Staff">Staff</option>
-                <option value="Driver">Driver</option>
-              </select>
-            </div>
-          </div>
-
           <button type="submit" class="btn" id="submitBtn">
             <span class="btn__spinner" aria-hidden="true"></span>
             <span class="btn__label">Register</span>
@@ -141,10 +131,19 @@
       const name = document.getElementById("name").value.trim();
       const email = document.getElementById("email").value.trim();
       const password = passwordInput.value;
-      const role = document.getElementById("role").value;
 
       if (!name || !email || !password) {
         setMessage("Please fill in all fields.", "error");
+        return;
+      }
+
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(email)) {
+        setMessage("Please enter a valid email address.", "error");
+        return;
+      }
+
+      if (password.length < 8) {
+        setMessage("Your password must be at least 8 characters.", "error");
         return;
       }
 
@@ -160,14 +159,14 @@
         const response = await fetch(apiUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, email, password, role })
+          body: JSON.stringify({ name, email, password })
         });
 
         if (response.ok) {
-          setMessage("Registration successful! Redirecting to login…", "success");
+          setMessage("Registration successful! Check your email for a verification link. Redirecting to login…", "success");
           setTimeout(() => {
             window.location.href = "/login.html";
-          }, 900);
+          }, 3000);
         } else {
           let errorMessage = "Registration failed.";
           const contentType = response.headers.get("content-type");

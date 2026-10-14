@@ -34,6 +34,10 @@ public class BrevoEmailSender : IEmailSender
             return;
         }
 
+        // Brevo has two kinds of key. SMTP keys start with "xsmtpsib-" and do NOT work with this HTTPS API.
+        if (apiKey.StartsWith("xsmtpsib-"))
+            _logger.LogError("Email:BrevoApiKey is a Brevo SMTP key (xsmtpsib-...). The HTTPS API needs an API key that starts with xkeysib-. Create one under SMTP & API > API Keys.");
+
         try
         {
             var client = _http.CreateClient();

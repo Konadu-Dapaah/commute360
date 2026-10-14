@@ -80,9 +80,25 @@ public class AccountController : ControllerBase
     {
         var email = dto.Email.Trim().ToLower();
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == email);
-        if (user != null) await _mailer.SendResetAsync(user);
 
-        return Ok(new { message = "If that email has an account, a reset link is on its way." });
+        // 1. The address must belong to an account
+        if (user == null)
+            return NotFound(new { message = "No account was found with that email address." });
+
+        // 2. The email must be verified first. If it is not, send the verification link instead of a reset link.
+        if (!user.EmailVerified)
+        {
+            await _mailer.SendVerificationAsync(user);
+            return Ok(new
+            {
+                message = "Your email address isn't verified yet. We've sent you a verification link. Open it, then come back and request the reset link again.",
+                needsVerification = true
+            });
+        }
+
+        // 3. Verified account: send the reset link
+        await _mailer.SendResetAsync(user);
+        return Ok(new { message = "A password reset link has been sent to your email. It expires in 1 hour." });
     }
 
     [HttpPost("reset-password")]
@@ -128,5 +144,18 @@ public class AccountController : ControllerBase
 
         await _mailer.SendVerificationAsync(user);
         return Ok(new { message = "Verification email sent." });
+    }
+    // For people who cannot log in yet because their email is not verified.
+    // Always answers the same way, so it cannot be used to discover which emails have accounts.
+    [HttpPost("resend-verification-public")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ResendVerificationPublic([FromBody] ForgotPasswordDto dto)
+    {
+        var email = dto.Email.Trim().ToLower();
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == email);
+        if (user != null && !user.EmailVerified)
+            await _mailer.SendVerificationAsync(user);
+
+        return Ok(new { message = "If that account still needs verifying, a new link is on its way." });
     }
 }

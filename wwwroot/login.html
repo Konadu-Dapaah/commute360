@@ -129,6 +129,35 @@
       }
     }
 
+    // Shown when the account exists but its email has not been verified yet
+    function showResend(email) {
+      const old = document.getElementById("resendBtn");
+      if (old) old.remove();
+
+      const btn = document.createElement("button");
+      btn.id = "resendBtn";
+      btn.type = "button";
+      btn.className = "ghost-btn";
+      btn.style.marginTop = "10px";
+      btn.textContent = "Resend verification email";
+      btn.addEventListener("click", async () => {
+        btn.disabled = true;
+        const base = (window.APP_CONFIG && window.APP_CONFIG.API_BASE) || "";
+        try {
+          await fetch(base + "/api/account/resend-verification-public", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email })
+          });
+          btn.textContent = "Sent. Check your inbox (and spam folder).";
+        } catch {
+          btn.textContent = "Couldn't send. Try again.";
+          btn.disabled = false;
+        }
+      });
+      messageEl.after(btn);
+    }
+
     document.getElementById("loginForm").addEventListener("submit", async (e) => {
       e.preventDefault();
 
@@ -137,6 +166,11 @@
 
       if (!email || !password) {
         setMessage("Please fill in all fields.", "error");
+        return;
+      }
+
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(email)) {
+        setMessage("Please enter a valid email address.", "error");
         return;
       }
 
@@ -184,16 +218,19 @@
           setMessage("Too many attempts. Please wait a minute and try again.", "error");
         } else {
           let errorMessage = "Login failed.";
+          let needsVerify = false;
           const contentType = response.headers.get("content-type");
 
           if (contentType && contentType.includes("application/json")) {
             const errorData = await response.json();
             errorMessage = errorData.message || errorData.title || errorMessage;
+            if (errorData.code === "EMAIL_NOT_VERIFIED") needsVerify = true;
           } else {
             const textErr = await response.text();
             errorMessage = textErr || `Server returned status ${response.status}`;
           }
           setMessage(errorMessage, "error");
+          if (needsVerify) showResend(email);
         }
       } catch (err) {
         console.error("Fetch error details:", err);

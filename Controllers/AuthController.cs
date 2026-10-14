@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -37,12 +38,28 @@ public class AuthController : ControllerBase
         return a.Length == b.Length && CryptographicOperations.FixedTimeEquals(a, b);
     }
 
+    // A real address needs something@something.xx (the browser's own check is much looser)
+    private static readonly Regex EmailPattern =
+        new(@"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$", RegexOptions.Compiled);
+
+    private static bool IsValidEmail(string? email) =>
+        !string.IsNullOrWhiteSpace(email) && email.Length <= 254 && EmailPattern.IsMatch(email);
+
     [HttpPost("register")]
     [EnableRateLimiting("auth")]
     public async Task<IActionResult> Register(RegisterDto dto)
     {
-        // 1. Duplicate email check
-        if (await _context.Users.AnyAsync(u => u.Email == dto.Email))
+        // 1. Email must be well formed. Store it trimmed and lower-case so that
+        //    "Ama@x.com" and "ama@x.com" are the same account.
+        var email = (dto.Email ?? "").Trim().ToLowerInvariant();
+        if (!IsValidEmail(email))
+            return BadRequest("Please enter a valid email address.");
+
+        if (string.IsNullOrWhiteSpace(dto.Name))
+            return BadRequest("Please enter your name.");
+
+        // 2. Duplicate email check (case-insensitive)
+        if (await _context.Users.AnyAsync(u => u.Email.ToLower() == email))
             return BadRequest("Email already registered.");
 
         if (string.IsNullOrWhiteSpace(dto.Password) || dto.Password.Length < 8)
@@ -65,7 +82,7 @@ public class AuthController : ControllerBase
         var user = new User
         {
             Name = dto.Name,
-            Email = dto.Email,
+            Email = email,
             Role = role,
             EmailVerified = false
         };
@@ -81,14 +98,18 @@ public class AuthController : ControllerBase
         try { await _mailer.SendVerificationAsync(user); }
         catch (Exception ex) { Console.WriteLine($"Verification email failed: {ex.Message}"); }
 
-        return Ok(new { message = "Registration successful." });
+        return Ok(new { message = "Registration successful. Check your email for a verification link." });
     }
 
     [HttpPost("login")]
     [EnableRateLimiting("auth")]
     public async Task<IActionResult> Login(LoginDto dto)
     {
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email);
+        var email = (dto.Email ?? "").Trim().ToLowerInvariant();
+        if (!IsValidEmail(email))
+            return BadRequest("Please enter a valid email address.");
+
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == email);
         if (user == null)
             return Unauthorized("Invalid email or password.");
 
@@ -98,6 +119,16 @@ public class AuthController : ControllerBase
 
         if (result == PasswordVerificationResult.Failed)
             return Unauthorized("Invalid email or password.");
+
+        // Optional gate: only people who proved they own the address may log in.
+        // Switch on with the setting Email:RequireVerifiedToLogin = true (Render: Email__RequireVerifiedToLogin).
+        // It is checked AFTER the password, so only the real owner learns the account is unverified.
+        if (_config.GetValue<bool>("Email:RequireVerifiedToLogin") && !user.EmailVerified)
+            return StatusCode(403, new
+            {
+                message = "Please verify your email address first. We sent you a link when you registered.",
+                code = "EMAIL_NOT_VERIFIED"
+            });
 
         return Ok(new { token = _tokenService.CreateToken(user), role = user.Role });
     }
