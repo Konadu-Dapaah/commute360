@@ -15,9 +15,9 @@ namespace Commute360.Controllers;
 public class TrackingController : ControllerBase
 {
     private readonly AppDbContext _context;
-    private readonly Alertsmsservice _alertSms;
+    private readonly AlertSmsService _alertSms;
 
-    public TrackingController(AppDbContext context, Alertsmsservice alertSms)
+    public TrackingController(AppDbContext context, AlertSmsService alertSms)
     {
         _context = context;
         _alertSms = alertSms;
