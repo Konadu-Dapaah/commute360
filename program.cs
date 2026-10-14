@@ -69,7 +69,17 @@ builder.Services.AddScoped<IEmailSender>(sp =>
         : ActivatorUtilities.CreateInstance<SmtpEmailSender>(sp);
 });
 
+// SMS: Arkesel when Sms:ArkeselApiKey is set, otherwise messages are only written to the log
+builder.Services.AddScoped<ISmsSender>(sp =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    return !string.IsNullOrWhiteSpace(config["Sms:ArkeselApiKey"])
+        ? ActivatorUtilities.CreateInstance<ArkeselSmsSender>(sp)
+        : ActivatorUtilities.CreateInstance<LogSmsSender>(sp);
+});
+
 builder.Services.AddScoped<AccountMailer>();
+builder.Services.AddScoped<AlertSmsService>();
 builder.Services.AddHealthChecks();
 builder.Services.AddSignalR();
 

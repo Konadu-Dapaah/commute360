@@ -92,13 +92,30 @@ public class AccountMailer
 {
     private readonly AppDbContext _context;
     private readonly IEmailSender _email;
+    private readonly ISmsSender _sms;
     private readonly IConfiguration _config;
 
-    public AccountMailer(AppDbContext context, IEmailSender email, IConfiguration config)
+    public AccountMailer(AppDbContext context, IEmailSender email, ISmsSender sms, IConfiguration config)
     {
         _context = context;
         _email = email;
+        _sms = sms;
         _config = config;
+    }
+
+    // Sends an SMS alert to the number saved on the account (if there is one).
+    private async Task TrySmsAsync(User user, string message)
+    {
+        if (string.IsNullOrWhiteSpace(user.PhoneNumber)) return;
+        try { await _sms.SendAsync(user.PhoneNumber, message); }
+        catch (Exception) { /* an SMS problem must never fail the request */ }
+    }
+
+    public async Task NotifyPasswordChangedAsync(User user)
+    {
+        await _email.SendAsync(user.Email, "Your Commute360 password was changed",
+            $"Hi {user.Name},\n\nThe password on your Commute360 account was just changed. If this was you, no action is needed. If it wasn't, reset your password straight away.");
+        await TrySmsAsync(user, "Commute360: your password was just changed. If this wasn't you, reset it immediately.");
     }
 
     private string BaseUrl => (_config["App:BaseUrl"] ?? "http://localhost:5291").TrimEnd('/');
@@ -146,6 +163,7 @@ public class AccountMailer
         var link = $"{BaseUrl}/verify-email.html?token={raw}";
         await _email.SendAsync(user.Email, "Verify your Commute360 email",
             $"Hi {user.Name},\n\nConfirm your email address by opening this link:\n{link}\n\nThe link expires in 2 days. If you didn't create an account, ignore this email.");
+        await TrySmsAsync(user, "Commute360: we emailed you a link to verify your address. Open it to activate your account.");
     }
 
     public async Task SendResetAsync(User user)
@@ -154,5 +172,6 @@ public class AccountMailer
         var link = $"{BaseUrl}/reset-password.html?token={raw}";
         await _email.SendAsync(user.Email, "Reset your Commute360 password",
             $"Hi {user.Name},\n\nReset your password using this link:\n{link}\n\nThe link expires in 1 hour. If you didn't ask for this, ignore this email and your password stays the same.");
+        await TrySmsAsync(user, "Commute360: a password reset was requested for your account. Check your email for the link (valid for 1 hour). If this wasn't you, ignore this message.");
     }
 }

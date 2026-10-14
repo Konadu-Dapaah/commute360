@@ -82,6 +82,13 @@
             </div>
           </div>
 
+          <div class="field">
+            <label for="phone">Phone number (for SMS alerts)</label>
+            <div class="field__control">
+              <input type="tel" id="phone" name="phone" placeholder="e.g. 0241234567" autocomplete="tel" required />
+            </div>
+          </div>
+
           <button type="submit" class="btn" id="submitBtn">
             <span class="btn__spinner" aria-hidden="true"></span>
             <span class="btn__label">Register</span>
@@ -131,6 +138,7 @@
       const name = document.getElementById("name").value.trim();
       const email = document.getElementById("email").value.trim();
       const password = passwordInput.value;
+      const phone = document.getElementById("phone").value.trim();
 
       if (!name || !email || !password) {
         setMessage("Please fill in all fields.", "error");
@@ -147,6 +155,11 @@
         return;
       }
 
+      if (!/^\+?[0-9\s\-()]{9,16}$/.test(phone)) {
+        setMessage("Please enter a valid phone number, for example 0241234567.", "error");
+        return;
+      }
+
       submitBtn.disabled = true;
       submitBtn.classList.add("is-loading");
       setMessage("");
@@ -159,7 +172,7 @@
         const response = await fetch(apiUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, email, password })
+          body: JSON.stringify({ name, email, password, phoneNumber: phone })
         });
 
         if (response.ok) {

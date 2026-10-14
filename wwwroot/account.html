@@ -43,6 +43,19 @@
       </div>
 
       <div class="panel">
+        <h2>Phone number for SMS alerts</h2>
+        <p class="muted" id="phoneInfo">Loading…</p>
+        <form class="form" id="phoneForm" novalidate>
+          <div>
+            <label for="phone">New phone number</label>
+            <input class="input" type="tel" id="phone" placeholder="e.g. 0241234567" autocomplete="tel" />
+          </div>
+          <button type="submit" class="cta" id="phoneBtn">Save phone number</button>
+          <p class="msg" id="phoneMsg" role="status"></p>
+        </form>
+      </div>
+
+      <div class="panel">
         <h2>Change password</h2>
         <form class="form" id="pwForm" novalidate>
           <div><label for="current">Current password</label><input class="input" type="password" id="current" autocomplete="current-password" required /></div>
@@ -136,6 +149,50 @@
         $("pwBtn").disabled = false;
       }
     });
+
+    // ---- Phone number for SMS alerts ----
+    (async function () {
+      const info = document.getElementById("phoneInfo");
+      const msg = document.getElementById("phoneMsg");
+
+      try {
+        const me = await Auth.me();
+        info.textContent = me.hasPhone
+          ? `Alerts are sent to ${me.phoneMasked}.`
+          : "No phone number saved yet. Add one to receive SMS alerts.";
+      } catch { info.textContent = ""; }
+
+      document.getElementById("phoneForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const phoneNumber = document.getElementById("phone").value.trim();
+        msg.className = "msg";
+
+        if (!/^\+?[0-9\s\-()]{9,16}$/.test(phoneNumber)) {
+          msg.className = "msg is-error";
+          msg.textContent = "Please enter a valid phone number, for example 0241234567.";
+          return;
+        }
+
+        document.getElementById("phoneBtn").disabled = true;
+        try {
+          const res = await Auth.api("/api/account/phone", { method: "PUT", body: JSON.stringify({ phoneNumber }) });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok) {
+            msg.className = "msg is-success";
+            msg.textContent = data.message || "Saved.";
+            info.textContent = `Alerts are sent to ${data.phoneMasked}.`;
+            document.getElementById("phone").value = "";
+          } else {
+            msg.className = "msg is-error";
+            msg.textContent = data.message || data.title || "Could not save the number.";
+          }
+        } catch (err) {
+          if (err.message !== "Unauthorized") { msg.className = "msg is-error"; msg.textContent = "Could not reach the server."; }
+        } finally {
+          document.getElementById("phoneBtn").disabled = false;
+        }
+      });
+    })();
   </script>
 </body>
 </html>

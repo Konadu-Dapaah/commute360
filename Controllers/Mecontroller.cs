@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Commute360.Data;
+using Commute360.Services;
 
 namespace Commute360.Controllers;
 
@@ -35,6 +36,15 @@ public class MeController : ControllerBase
         var role = User.FindFirstValue(ClaimTypes.Role);
         if (string.IsNullOrEmpty(role)) role = "Staff";
 
-        return Ok(new { user.Id, user.Name, user.Email, Role = role, user.EmailVerified });
+        return Ok(new
+        {
+            user.Id,
+            user.Name,
+            user.Email,
+            Role = role,
+            user.EmailVerified,
+            HasPhone = !string.IsNullOrEmpty(user.PhoneNumber),
+            PhoneMasked = string.IsNullOrEmpty(user.PhoneNumber) ? null : PhoneNumberHelper.Mask(user.PhoneNumber)
+        });
     }
 }

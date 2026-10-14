@@ -33,6 +33,11 @@ public class TokenDto
     [Required] public string Token { get; set; } = "";
 }
 
+public class SetPhoneDto
+{
+    [Required] public string PhoneNumber { get; set; } = "";
+}
+
 [ApiController]
 [Route("api/account")]
 [EnableRateLimiting("auth")]
@@ -70,6 +75,7 @@ public class AccountController : ControllerBase
 
         user.PasswordHash = _passwords.Hash(user, dto.NewPassword);
         await _context.SaveChangesAsync();
+        await _mailer.NotifyPasswordChangedAsync(user);
         return Ok(new { message = "Password changed." });
     }
 
@@ -116,6 +122,7 @@ public class AccountController : ControllerBase
 
         user.PasswordHash = _passwords.Hash(user, dto.NewPassword);
         await _context.SaveChangesAsync();
+        await _mailer.NotifyPasswordChangedAsync(user);
         return Ok(new { message = "Password updated. You can log in now." });
     }
 
@@ -157,5 +164,20 @@ public class AccountController : ControllerBase
             await _mailer.SendVerificationAsync(user);
 
         return Ok(new { message = "If that account still needs verifying, a new link is on its way." });
+    }
+    // Add or change the phone number that receives SMS alerts
+    [HttpPut("phone")]
+    [Authorize]
+    public async Task<IActionResult> SetPhone([FromBody] SetPhoneDto dto)
+    {
+        if (!PhoneNumberHelper.TryNormalize(dto.PhoneNumber, out var phone))
+            return BadRequest(new { message = "Please enter a valid phone number, for example 0241234567." });
+
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == CurrentUserId);
+        if (user == null) return Unauthorized();
+
+        user.PhoneNumber = phone;
+        await _context.SaveChangesAsync();
+        return Ok(new { message = "Phone number saved.", phoneMasked = PhoneNumberHelper.Mask(phone) });
     }
 }

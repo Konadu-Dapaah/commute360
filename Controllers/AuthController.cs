@@ -58,6 +58,10 @@ public class AuthController : ControllerBase
         if (string.IsNullOrWhiteSpace(dto.Name))
             return BadRequest("Please enter your name.");
 
+        // The phone number receives SMS alerts. Stored in international format.
+        if (!PhoneNumberHelper.TryNormalize(dto.PhoneNumber, out var phone))
+            return BadRequest("Please enter a valid phone number, for example 0241234567.");
+
         // 2. Duplicate email check (case-insensitive)
         if (await _context.Users.AnyAsync(u => u.Email.ToLower() == email))
             return BadRequest("Email already registered.");
@@ -83,6 +87,7 @@ public class AuthController : ControllerBase
         {
             Name = dto.Name,
             Email = email,
+            PhoneNumber = phone,
             Role = role,
             EmailVerified = false
         };

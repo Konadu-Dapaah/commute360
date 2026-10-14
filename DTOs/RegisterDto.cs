@@ -7,4 +7,5 @@ public class RegisterDto
     public string Password { get; set; } = string.Empty;
     public string Role { get; set; } = "Staff"; // "Staff" or "Driver"
     public string? InviteCode { get; set; }
+    public string? PhoneNumber { get; set; }
 }

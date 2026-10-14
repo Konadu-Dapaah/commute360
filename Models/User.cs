@@ -12,4 +12,6 @@ public class User
  //to show a staff can have mulitple bbokings
     public ICollection<Booking> Bookings { get; set; } = new List<Booking>();
     public bool EmailVerified { get; set; } = false;
+    // International format, e.g. +233241234567. Used for SMS alerts.
+    public string? PhoneNumber { get; set; }
 }

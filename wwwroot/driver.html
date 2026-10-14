@@ -327,7 +327,12 @@
         });
 
         if (res.ok) {
-          setMsg(status, "Alert sent to riders on this route.", "success");
+          let smsNote = "";
+          try {
+            const sent = (await res.json()).smsSent;
+            if (sent > 0) smsNote = ` SMS sent to ${sent} rider${sent === 1 ? "" : "s"}.`;
+          } catch { /* no body, no note */ }
+          setMsg(status, "Alert sent to riders on this route." + smsNote, "success");
           const li = document.createElement("li");
           li.textContent = `${new Date().toLocaleTimeString()} · ${$("alertType").value}: ${message}`;
           $("sentList").prepend(li);

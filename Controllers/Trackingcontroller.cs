@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Commute360.Data;
 using Commute360.DTOs;
 using Commute360.Models;
+using Commute360.Services;
 
 namespace Commute360.Controllers;
 
@@ -14,10 +15,12 @@ namespace Commute360.Controllers;
 public class TrackingController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly Alertsmsservice _alertSms;
 
-    public TrackingController(AppDbContext context)
+    public TrackingController(AppDbContext context, Alertsmsservice alertSms)
     {
         _context = context;
+        _alertSms = alertSms;
     }
 
     private int CurrentUserId =>
@@ -140,7 +143,10 @@ public class TrackingController : ControllerBase
         _context.DriverAlerts.Add(alert);
         await _context.SaveChangesAsync();
 
-        return Ok(new { alert.Id, alert.Type, alert.Message, alert.CreatedAt });
+        // Also text the riders who are expected on the bus today (best effort, never fails the alert)
+        var smsSent = await _alertSms.SendDriverAlertAsync(alert);
+
+        return Ok(new { alert.Id, alert.Type, alert.Message, alert.CreatedAt, SmsSent = smsSent });
     }
 
     // ---------- PASSENGER: alerts for my route (last 2 hours) ----------
