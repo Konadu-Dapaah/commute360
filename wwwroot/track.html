@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/auth.css" />
   <link rel="stylesheet" href="css/routes.css" />
-  <!-- Configuration script providing Render API_BASE and Google Maps API Key -->
+  <!-- Configuration script providing API_BASE and the Google Maps key -->
   <script src="config.js"></script>
   <style>
     [hidden] { display: none !important; }
@@ -19,6 +19,8 @@
     .panel h2 { margin: 0 0 10px; font-size: 14px; letter-spacing: .08em; text-transform: uppercase; opacity: .7; }
     #map { width: 100%; height: 62vh; min-height: 360px; border-radius: 12px; background: #0f1d33; }
     .map-bar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .routepick { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+    .routepick select { padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,.2); background: rgba(10,22,40,.7); color: #e8eefc; font: inherit; max-width: 270px; }
     .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; font-size: 14px; font-weight: 600; background: rgba(255,255,255,.1); }
     .pill::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: #8b97ad; }
     .pill.is-live::before { background: #34d399; box-shadow: 0 0 0 4px rgba(52,211,153,.25); }
@@ -34,12 +36,8 @@
     .alert.is-new { animation: flash 1.6s ease-out 2; }
     @keyframes flash { 0%,100% { transform: none; } 50% { transform: scale(1.02); box-shadow: 0 0 0 3px rgba(255,255,255,.35); } }
     .empty { opacity: .65; font-size: 14px; }
-    .notice { padding: 24px; text-align: center; color: #e8eefc; }
+    .notice { padding: 16px 20px; margin-bottom: 16px; color: #e8eefc; }
     .notice a { color: #7dd3fc; }
-    .stop-dot { width: 26px; height: 26px; border-radius: 50%; background: #475569; color: #fff; border: 2px solid #fff; display: grid; place-items: center; font-size: 12px; font-weight: 700; box-shadow: 0 2px 6px rgba(0,0,0,.4); }
-    .stop-dot--board { background: #16a34a; }
-    .stop-dot--drop { background: #dc2626; }
-    .bus-dot { width: 42px; height: 42px; border-radius: 50%; background: #fbbf24; border: 3px solid #0a1628; display: grid; place-items: center; font-size: 22px; box-shadow: 0 0 0 6px rgba(251,191,36,.3), 0 4px 10px rgba(0,0,0,.5); }
   </style>
 </head>
 <body>
@@ -51,34 +49,39 @@
 
   <div class="page-shell">
     <header class="topbar">
-      <a class="topbar__brand" href="/routes.html">
+      <a class="topbar__brand" href="/staff-dashboard.html">
         <span class="topbar__name">Commute<span>360</span></span>
       </a>
       <div class="topbar__actions">
-        <a class="ghost-btn" href="/routes.html">Routes</a>
+        <a class="ghost-btn" href="/staff-dashboard.html">Dashboard</a>
         <button type="button" class="ghost-btn" id="logoutBtn">Sign out</button>
       </div>
     </header>
 
     <div class="page-header">
       <h1>Track your bus</h1>
-      <p id="subtitle">Loading your booking…</p>
+      <p id="subtitle">Loading…</p>
     </div>
 
     <div class="panel notice" id="noBooking" hidden>
-      <p>You don't have an active booking yet.</p>
-      <p><a href="/routes.html">Pick a route</a> and come back to see your bus live.</p>
+      <p style="margin:0">You don't have an active booking yet, but you can still watch any route below.
+        <a href="/routes.html">Pick a route</a> to book a seat.</p>
     </div>
 
     <div class="track-layout" id="trackLayout" hidden>
       <section class="panel">
         <div class="map-bar">
+          <label class="routepick">Route
+            <select id="routeSelect" aria-label="Choose a route to watch"></select>
+          </label>
           <span class="pill" id="busPill">Waiting for bus…</span>
           <label class="follow"><input type="checkbox" id="followBus" checked /> Follow bus</label>
         </div>
         <div class="trip-info" id="tripInfo"></div>
         <div class="eta" id="etaBox" hidden></div>
+        <div id="checkinBox"></div>
         <div id="map"></div>
+        <p class="empty" id="roadNote" hidden>Road directions are unavailable right now, so the line joins the stops directly.</p>
       </section>
 
       <aside class="panel">
@@ -89,12 +92,13 @@
     </div>
   </div>
 
+  <script src="livemap.js"></script>
+  <script src="checkin.js"></script>
   <script>
     const token = localStorage.getItem("token") || localStorage.getItem("authToken");
     if (!token) window.location.href = "/login.html";
 
     const apiBase = (window.APP_CONFIG && window.APP_CONFIG.API_BASE) || "";
-    const cfg = window.APP_CONFIG || {};
     const POLL_MS = 4000;
     const STALE_MS = 45000;
 
@@ -102,17 +106,20 @@
     const ALERT_LABELS = { Delay: "Delay", Traffic: "Traffic", Breakdown: "Breakdown", Info: "Info", Emergency: "EMERGENCY" };
     const ALERT_CLASS = { Delay: "alert--warn", Traffic: "alert--warn", Breakdown: "alert--danger", Info: "", Emergency: "alert--danger" };
 
-    let map, busMarker = null, busPos = null;
+    let live = null;          // the shared map (livemap.js)
+    let routes = [];
+    let booking = null;       // my confirmed booking, if any
+    let current = null;       // the route being watched
     let routeId = null;
     let lastAlertId = 0;
     let stopsOrdered = [];
-    let myBooking = null;
-    let hasAlertedNearStop = false;
+    let tripEnded = false;     // true once the rider has pressed "I've got off"
+
+    const validStop = (s) => Number.isFinite(s.latitude) && Number.isFinite(s.longitude) && !(s.latitude === 0 && s.longitude === 0);
+    const isMine = () => !!booking && booking.routeId === routeId;
 
     async function api(path) {
-      if (window.Auth && typeof window.Auth.api === "function") {
-        return window.Auth.api(path);
-      }
+      if (window.Auth && typeof window.Auth.api === "function") return window.Auth.api(path);
       const res = await fetch(apiBase + path, { headers: { Authorization: "Bearer " + token } });
       if (res.status === 401) {
         localStorage.removeItem("token");
@@ -123,136 +130,6 @@
       return res;
     }
 
-    window.gm_authFailure = () => {
-      $("busPill").textContent = "Google Maps rejected the API key";
-    };
-
-    function loadGoogleMaps() {
-      return new Promise((resolve, reject) => {
-        if (!cfg || !cfg.GOOGLE_MAPS_API_KEY || cfg.GOOGLE_MAPS_API_KEY.startsWith("PASTE")) {
-          reject(new Error("Add your Google Maps API key to config.js"));
-          return;
-        }
-        window.__mapsReady = resolve;
-        const s = document.createElement("script");
-        s.src = "https://maps.googleapis.com/maps/api/js?key=" + encodeURIComponent(cfg.GOOGLE_MAPS_API_KEY) +
-                "&callback=__mapsReady&loading=async&libraries=marker&v=weekly";
-        s.async = true;
-        s.onerror = () => reject(new Error("Google Maps failed to load"));
-        document.head.appendChild(s);
-      });
-    }
-
-    function makeStopEl(label, kind) {
-      const el = document.createElement("div");
-      el.className = "stop-dot" + (kind ? ` stop-dot--${kind}` : "");
-      el.textContent = label;
-      return el;
-    }
-
-    async function buildMap(route, booking) {
-      const { AdvancedMarkerElement } = google.maps.marker;
-
-      const stops = (route.stops || [])
-        .filter((s) => s.latitude != null && s.longitude != null)
-        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-
-      stopsOrdered = stops;
-      myBooking = booking;
-
-      map = new google.maps.Map($("map"), {
-        center: stops.length ? { lat: stops[0].latitude, lng: stops[0].longitude } : (cfg.DEFAULT_CENTER || { lat: 5.6037, lng: -0.1870 }),
-        zoom: 14,
-        mapId: cfg.MAP_ID,
-        streetViewControl: false,
-        mapTypeControl: false
-      });
-
-      if (stops.length >= 2) {
-        // Drop custom stop markers first
-        stops.forEach((s, i) => {
-          const kind = s.id === booking.boardingStopId ? "board" : s.id === booking.dropOffStopId ? "drop" : "";
-          new AdvancedMarkerElement({
-            map,
-            position: { lat: s.latitude, lng: s.longitude },
-            title: s.name,
-            content: makeStopEl(String(i + 1), kind)
-          });
-        });
-
-        // Fetch true road-snapped geometry via OSRM public routing API
-        const coords = stops.map(s => `${s.longitude},${s.latitude}`).join(";");
-        try {
-          const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`);
-          const data = await res.json();
-
-          if (data.code === "Ok" && data.routes && data.routes.length > 0) {
-            const roadPath = data.routes[0].geometry.coordinates.map(c => ({
-              lat: c[1],
-              lng: c[0]
-            }));
-
-            new google.maps.Polyline({
-              map: map,
-              path: roadPath,
-              strokeColor: "#38bdf8",
-              strokeOpacity: 0.9,
-              strokeWeight: 5
-            });
-          } else {
-            throw new Error("Route calculation failed");
-          }
-        } catch (err) {
-          console.warn("OSRM road routing fallback triggered:", err);
-          const fallbackPath = stops.map((s) => ({ lat: s.latitude, lng: s.longitude }));
-          new google.maps.Polyline({
-            map: map,
-            path: fallbackPath,
-            strokeColor: "#38bdf8",
-            strokeOpacity: 0.9,
-            strokeWeight: 5
-          });
-        }
-
-        const bounds = new google.maps.LatLngBounds();
-        stops.forEach(s => bounds.extend({ lat: s.latitude, lng: s.longitude }));
-        map.fitBounds(bounds, 60);
-      } else {
-        $("tripInfo").textContent += " (This route needs at least 2 stops with coordinates to draw a path.)";
-      }
-    }
-
-    function moveBus(target) {
-      const { AdvancedMarkerElement } = google.maps.marker;
-
-      if (!busMarker) {
-        const el = document.createElement("div");
-        el.className = "bus-dot";
-        el.textContent = "🚌";
-        busMarker = new AdvancedMarkerElement({ map, position: target, content: el, title: "Your bus", zIndex: 999 });
-        busPos = target;
-        map.panTo(target);
-        return;
-      }
-
-      const from = { ...busPos };
-      const start = performance.now();
-      const duration = 1500;
-
-      function step(now) {
-        const t = Math.min((now - start) / duration, 1);
-        busPos = {
-          lat: from.lat + (target.lat - from.lat) * t,
-          lng: from.lng + (target.lng - from.lng) * t
-        };
-        busMarker.position = busPos;
-        if (t < 1) requestAnimationFrame(step);
-      }
-      requestAnimationFrame(step);
-
-      if ($("followBus").checked) map.panTo(target);
-    }
-
     function setPill(state, text) {
       const pill = $("busPill");
       pill.className = "pill" + (state ? ` is-${state}` : "");
@@ -261,104 +138,69 @@
 
     function ageText(ms) {
       const s = Math.round(ms / 1000);
-      if (s < 60) return `${s}s`;
-      const m = Math.round(s / 60);
-      return `${m} min`;
+      return s < 60 ? `${s}s` : `${Math.round(s / 60)} min`;
     }
 
+    // ---------- ETA (an estimate, only for the rider's own booked route) ----------
     function km(a, b) {
       const R = 6371, rad = Math.PI / 180;
       const dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
-      const x = Math.sin(dLat / 2) ** 2 +
-                Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
+      const x = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
       return 2 * R * Math.asin(Math.sqrt(x));
-    }
-
-    function triggerNotification(stopName, distanceKm) {
-      if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
-
-      if (window.Notification && Notification.permission === "granted") {
-        new Notification("Bus Approaching! 🚌", {
-          body: `Your bus is about ${distanceKm.toFixed(1)} km away from ${stopName}. Get ready!`,
-          icon: "/favicon.ico"
-        });
-      }
-
-      const alertList = $("alertList");
-      const li = document.createElement("li");
-      li.className = "alert alert--warn is-new";
-      li.innerHTML = `
-        <div class="alert__head">PROXIMITY ALERT · NEAR BOARDING</div>
-        <div>Your bus is approaching <strong>${stopName}</strong> (~${distanceKm.toFixed(1)} km away)!</div>
-      `;
-      alertList.prepend(li);
-      $("alertEmpty").hidden = true;
     }
 
     function updateEta(d, stale) {
       const box = $("etaBox");
-      if (!myBooking || stopsOrdered.length < 2 || stale) { box.hidden = true; return; }
+      if (!isMine() || stopsOrdered.length < 2 || stale) { box.hidden = true; return; }
 
-      const boardIdx = stopsOrdered.findIndex((s) => s.id === myBooking.boardingStopId);
+      const boardIdx = stopsOrdered.findIndex((s) => s.id === booking.boardingStopId);
       if (boardIdx < 0) { box.hidden = true; return; }
 
       const bus = { lat: d.latitude, lng: d.longitude };
       const pts = stopsOrdered.map((s) => ({ lat: s.latitude, lng: s.longitude }));
       box.hidden = false;
 
-      const distToBoarding = km(bus, pts[boardIdx]);
-
-      if (distToBoarding < 0.15) {
-        box.textContent = "Your bus is at your boarding stop.";
-        return;
-      }
-
-      // Trigger notification when bus is within 1 km of the boarding stop
-      if (distToBoarding <= 1.0 && !hasAlertedNearStop) {
-        hasAlertedNearStop = true;
-        triggerNotification(stopsOrdered[boardIdx].name, distToBoarding);
-      }
+      if (km(bus, pts[boardIdx]) < 0.15) { box.textContent = "Your bus is at your boarding stop."; return; }
 
       let nearest = 0;
       pts.forEach((p, i) => { if (km(bus, p) < km(bus, pts[nearest])) nearest = i; });
 
-      if (nearest > boardIdx) {
-        box.textContent = "Your bus has already passed your boarding stop.";
-        return;
-      }
+      if (nearest > boardIdx) { box.textContent = "Your bus has already passed your boarding stop."; return; }
 
       let dist = km(bus, pts[nearest]);
       for (let i = nearest; i < boardIdx; i++) dist += km(pts[i], pts[i + 1]);
 
       const speed = d.speedKmh >= 10 ? d.speedKmh : 20;
       const minutes = Math.max(1, Math.round((dist * 1.3) / speed * 60));
-
-      box.textContent =
-        `Estimated arrival at ${stopsOrdered[boardIdx].name}: about ${minutes} min (${dist.toFixed(1)} km away).`;
+      box.textContent = `Estimated arrival at ${stopsOrdered[boardIdx].name}: about ${minutes} min (${dist.toFixed(1)} km away). This is an estimate.`;
     }
 
+    // ---------- Polling ----------
     async function pollLocation() {
+      const rid = routeId;
+      if (!rid || !live) return;
+      if (isMine() && tripEnded) return;            // the rider's trip is over
       try {
-        const res = await api(`/api/tracking/routes/${routeId}/location`);
+        const res = await api(`/api/tracking/routes/${rid}/location`);
+        if (rid !== routeId) return;                       // the person picked another route meanwhile
+
         if (res.status === 204) {
+          live.removeBus("bus");
+          $("etaBox").hidden = true;
           setPill("", "Bus isn't on the road yet");
           return;
         }
-        if (!res.ok) {
-          setPill("", `Couldn't get bus position (${res.status})`);
-          return;
-        }
+        if (!res.ok) { setPill("", `Couldn't get bus position (${res.status})`); return; }
+
         const d = await res.json();
         const age = Date.now() - new Date(d.updatedAt).getTime();
-        moveBus({ lat: d.latitude, lng: d.longitude });
-        updateEta(d, age > STALE_MS);
+        const stale = age > STALE_MS;
 
-        if (age > STALE_MS) {
-          setPill("stale", `Last seen ${ageText(age)} ago — driver may be offline`);
-        } else {
-          const speed = d.speedKmh != null ? ` · ${Math.round(d.speedKmh)} km/h` : "";
-          setPill("live", "Live" + speed);
-        }
+        live.setBus("bus", { lat: d.latitude, lng: d.longitude }, { stale, follow: $("followBus").checked, title: "Bus" });
+        updateEta(d, stale);
+
+        if (stale) setPill("stale", `Last seen ${ageText(age)} ago — driver may be offline`);
+        else setPill("live", "Live" + (d.speedKmh != null ? ` · ${Math.round(d.speedKmh)} km/h` : ""));
       } catch (err) {
         if (err.message !== "Unauthorized") console.error(err);
       }
@@ -374,7 +216,7 @@
       head.textContent = `${ALERT_LABELS[a.type] || "Info"} · ${time}`;
 
       const body = document.createElement("div");
-      body.textContent = a.message;
+      body.textContent = a.message;          // textContent: driver text can never run as HTML
 
       li.append(head, body);
       $("alertList").prepend(li);
@@ -382,62 +224,89 @@
     }
 
     async function pollAlerts(isFirst = false) {
+      const rid = routeId;
+      if (!rid || !isMine() || tripEnded) return;
       try {
-        const res = await api(`/api/tracking/routes/${routeId}/alerts?sinceId=${lastAlertId}`);
-        if (!res.ok) return;
+        const res = await api(`/api/tracking/routes/${rid}/alerts?sinceId=${lastAlertId}`);
+        if (rid !== routeId || !res.ok) return;
         const alerts = await res.json();
-        alerts.forEach((a) => {
-          addAlert(a, !isFirst);
-          lastAlertId = Math.max(lastAlertId, a.id);
-        });
+        alerts.forEach((a) => { addAlert(a, !isFirst); lastAlertId = Math.max(lastAlertId, a.id); });
         if (!isFirst && alerts.length && navigator.vibrate) navigator.vibrate(250);
       } catch (err) {
         if (err.message !== "Unauthorized") console.error(err);
       }
     }
 
+    // ---------- Choosing a route ----------
+    async function selectRoute(id) {
+      current = routes.find((r) => r.id === id);
+      if (!current) return;
+      routeId = id;
+      const mine = isMine();
+
+      $("subtitle").textContent = `${current.origin} → ${current.destination}`;
+      $("tripInfo").textContent = mine
+        ? `Boarding: ${booking.boardingStop?.name ?? "—"} · Drop-off: ${booking.dropOffStop?.name ?? "—"} · Days: ${booking.days}`
+        : "You're watching a route you haven't booked.";
+      $("etaBox").hidden = true;
+      $("roadNote").hidden = true;
+
+      lastAlertId = 0;
+      $("alertList").innerHTML = "";
+      $("alertEmpty").hidden = false;
+      $("alertEmpty").textContent = mine
+        ? "No alerts from the driver. New ones will appear here."
+        : "Driver alerts are shown for the route you've booked.";
+
+      stopsOrdered = (current.stops || []).filter(validStop).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      live.clearBuses();
+      setPill("", mine && tripEnded ? "Your trip is complete" : "Waiting for bus…");
+
+      const result = await live.showRoutes([current], {
+        highlight: mine ? { boardingStopId: booking.boardingStopId, dropOffStopId: booking.dropOffStopId } : null
+      });
+      if (id !== routeId) return;
+      $("roadNote").hidden = result.road;
+
+      await pollAlerts(true);
+      await pollLocation();
+    }
+
     async function init() {
       try {
-        // Request browser notification permission on page load
-        if (window.Notification && Notification.permission !== "granted") {
-          Notification.requestPermission();
-        }
+        const [bRes, rRes] = await Promise.all([api("/api/bookings/mine"), api("/api/routes")]);
+        const bookings = bRes.ok ? await bRes.json() : [];
+        booking = bookings.find((b) => b.status === "Confirmed") || null;
+        routes = rRes.ok ? await rRes.json() : [];
 
-        const bookings = await (await api("/api/bookings/mine")).json();
-        const booking = bookings.find((b) => b.status === "Confirmed");
+        if (!booking) $("noBooking").hidden = false;
+        if (!routes.length) { $("subtitle").textContent = "No routes have been created yet."; return; }
 
-        if (!booking) {
-          $("subtitle").textContent = "";
-          $("noBooking").hidden = false;
-          return;
-        }
-
-        routeId = booking.routeId;
-        const routes = await (await api("/api/routes")).json();
-        const route = routes.find((r) => r.id === routeId);
-        if (!route) throw new Error("Route not found");
-
-        $("subtitle").textContent = `${route.origin} → ${route.destination}`;
-        $("tripInfo").textContent =
-          `Boarding: ${booking.boardingStop?.name ?? "—"} · Drop-off: ${booking.dropOffStop?.name ?? "—"} · Days: ${booking.days}`;
+        const select = $("routeSelect");
+        routes.forEach((r) => {
+          const mine = booking && booking.routeId === r.id;
+          select.add(new Option(`${r.origin} → ${r.destination}${mine ? "  (my route)" : ""}`, r.id));
+        });
+        const first = booking ? booking.routeId : routes[0].id;
+        select.value = String(first);
         $("trackLayout").hidden = false;
 
-        await loadGoogleMaps();
-        await buildMap(route, booking);
+        window.gm_authFailure = () => { $("busPill").textContent = "Google Maps rejected the API key"; };
+        live = await LiveMap.create("map");
 
-        await pollAlerts(true);
-        await pollLocation();
+        select.addEventListener("change", () => selectRoute(Number(select.value)));
+        if (window.Checkin) Checkin.mount("checkinBox");
+
+        await selectRoute(first);
 
         setInterval(() => {
-          if (document.hidden) return;
+          if (document.hidden || !routeId) return;
           pollLocation();
           pollAlerts();
         }, POLL_MS);
       } catch (err) {
         console.error(err);
-        if (err.message !== "Unauthorized") {
-          $("subtitle").textContent = err.message || "Something went wrong loading your route.";
-        }
+        if (err.message !== "Unauthorized") $("subtitle").textContent = err.message || "Something went wrong loading the map.";
       }
     }
 
@@ -445,6 +314,16 @@
       localStorage.removeItem("token");
       localStorage.removeItem("authToken");
       window.location.href = "/login.html";
+    });
+
+    // When the rider presses "I've got off", their trip is over: stop tracking for them
+    document.addEventListener("checkin:state", (e) => {
+      tripEnded = !!(e.detail && e.detail.alighted);
+      if (tripEnded && isMine() && live) {
+        live.removeBus("bus");
+        $("etaBox").hidden = true;
+        setPill("", "Your trip is complete");
+      }
     });
 
     init();

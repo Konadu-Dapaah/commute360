@@ -49,6 +49,10 @@ public class SummaryController : ControllerBase
                 .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Contains(day);
 
+        var boardingsToday = await _context.Boardings.AsNoTracking()
+            .Where(x => x.RideDate == today)
+            .ToListAsync();
+
         var result = routes.Select(r =>
         {
             var routeBookings = bookings.Where(b => b.RouteId == r.Id).ToList();
@@ -71,6 +75,8 @@ public class SummaryController : ControllerBase
                 Riders = routeBookings.Count,
                 ExpectedToday = routeBookings.Count(b => RidesOn(b.Days, todayName) && !skippedToday.Contains(b.Id)),
                 SkippedToday = routeBookings.Count(b => RidesOn(b.Days, todayName) && skippedToday.Contains(b.Id)),
+                BoardedToday = routeBookings.Count(b => boardingsToday.Any(x => x.BookingId == b.Id)),
+                OnBoardNow = routeBookings.Count(b => boardingsToday.Any(x => x.BookingId == b.Id && x.AlightedAt == null)),
                 Days = days,
                 Stops = r.Stops
                     .OrderBy(s => s.Order)
@@ -131,6 +137,25 @@ public class SummaryController : ControllerBase
                 l.UpdatedAt
             }).ToListAsync();
 
-        return Ok(buses);
+        // How many riders are on each bus right now (boarded, not yet got off)
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var onBoard = await (
+            from x in _context.Boardings.AsNoTracking()
+            join b in _context.Bookings.AsNoTracking() on x.BookingId equals (int?)b.Id
+            where x.RideDate == today && x.AlightedAt == null
+            group b by b.RouteId into g
+            select new { RouteId = g.Key, Count = g.Count() }).ToListAsync();
+
+        return Ok(buses.Select(bus => new
+        {
+            bus.RouteId,
+            bus.Origin,
+            bus.Destination,
+            bus.Latitude,
+            bus.Longitude,
+            bus.SpeedKmh,
+            bus.UpdatedAt,
+            OnBoard = onBoard.FirstOrDefault(o => o.RouteId == bus.RouteId)?.Count ?? 0
+        }));
     }
 }

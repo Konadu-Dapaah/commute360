@@ -30,6 +30,19 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<SkippedRide>().HasIndex(s => new { s.BookingId, s.RideDate }).IsUnique();
         modelBuilder.Entity<Boarding>().HasIndex(b => new { b.BookingId, b.RideDate }).IsUnique();
 
+        // Keep the headcount history when a booking (or the account that owns it) is deleted
+        modelBuilder.Entity<Boarding>()
+            .HasOne(b => b.Booking)
+            .WithMany()
+            .HasForeignKey(b => b.BookingId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<Boarding>()
+            .HasOne(b => b.Driver)
+            .WithMany()
+            .HasForeignKey(b => b.DriverId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         modelBuilder.Entity<WaitlistEntry>().HasIndex(w => new { w.RouteId, w.Status, w.CreatedAt });
         modelBuilder.Entity<EmailToken>().HasIndex(t => t.TokenHash).IsUnique();
         modelBuilder.Entity<Announcement>().HasIndex(a => a.CreatedAt);

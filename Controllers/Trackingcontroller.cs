@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore;
 using Commute360.Data;
 using Commute360.DTOs;
 using Commute360.Models;
-using Commute360.Services;
 
 namespace Commute360.Controllers;
 
@@ -15,12 +14,10 @@ namespace Commute360.Controllers;
 public class TrackingController : ControllerBase
 {
     private readonly AppDbContext _context;
-    private readonly AlertSmsService _alertSms;
 
-    public TrackingController(AppDbContext context, AlertSmsService alertSms)
+    public TrackingController(AppDbContext context)
     {
         _context = context;
-        _alertSms = alertSms;
     }
 
     private int CurrentUserId =>
@@ -105,7 +102,8 @@ public class TrackingController : ControllerBase
     [HttpGet("routes/{routeId:int}/location")]
     public async Task<IActionResult> GetLocation(int routeId)
     {
-        if (!await CanViewRoute(routeId)) return Forbid();
+        // Any signed-in person may watch where a bus is (staff pick a route to view).
+        // Alerts stay limited to riders on that route, drivers and admins.
 
         var loc = await _context.BusLocations
             .AsNoTracking()
@@ -143,10 +141,7 @@ public class TrackingController : ControllerBase
         _context.DriverAlerts.Add(alert);
         await _context.SaveChangesAsync();
 
-        // Also text the riders who are expected on the bus today (best effort, never fails the alert)
-        var smsSent = await _alertSms.SendDriverAlertAsync(alert);
-
-        return Ok(new { alert.Id, alert.Type, alert.Message, alert.CreatedAt, SmsSent = smsSent });
+        return Ok(new { alert.Id, alert.Type, alert.Message, alert.CreatedAt });
     }
 
     // ---------- PASSENGER: alerts for my route (last 2 hours) ----------

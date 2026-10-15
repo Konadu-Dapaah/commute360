@@ -89,9 +89,10 @@ public class DriverController : ControllerBase
             .Where(s => s.RideDate == today && ids.Contains(s.BookingId))
             .Select(s => s.BookingId).ToListAsync();
 
-        var boarded = await _context.Boardings.AsNoTracking()
-            .Where(x => x.RideDate == today && ids.Contains(x.BookingId))
-            .Select(x => x.BookingId).ToListAsync();
+        var records = await _context.Boardings.AsNoTracking()
+            // If it's a LINQ query, filter out nulls first:
+.Where(x => x.BookingId.HasValue && ids.Contains(x.BookingId.Value))
+            .ToListAsync();
 
         var riders = todays
             .Where(b => !skipped.Contains(b.BookingId))
@@ -101,7 +102,8 @@ public class DriverController : ControllerBase
                 b.Name,
                 b.BoardingStop,
                 b.DropOffStop,
-                Boarded = boarded.Contains(b.BookingId)
+                Boarded = records.Any(x => x.BookingId == b.BookingId),
+                Alighted = records.Any(x => x.BookingId == b.BookingId && x.AlightedAt != null)
             })
             .ToList();
 
@@ -109,6 +111,9 @@ public class DriverController : ControllerBase
         {
             Date = today.ToString("yyyy-MM-dd"),
             Skipped = skipped.Count,
+            Expected = riders.Count,
+            OnBoard = riders.Count(r => r.Boarded && !r.Alighted),
+            GotOff = riders.Count(r => r.Alighted),
             Riders = riders
         });
     }

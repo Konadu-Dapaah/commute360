@@ -163,4 +163,126 @@ public async Task<IActionResult> TrackMyBus()
         Alerts = alerts
     });
 }
+    // ---------- Check-in: riders mark themselves as boarded or got off (feeds the headcount) ----------
+
+    private static bool RidesOnDay(string? days, string dayName) =>
+        (days ?? "")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Contains(dayName);
+
+    private async Task<object> BuildTodayAsync(Booking? booking)
+    {
+        if (booking == null) return new { HasBooking = false };
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var dayName = today.ToString("ddd", CultureInfo.InvariantCulture);
+
+        var skipped = await _context.SkippedRides.AnyAsync(s => s.BookingId == booking.Id && s.RideDate == today);
+        var record = await _context.Boardings.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.BookingId == booking.Id && x.RideDate == today);
+
+        return new
+        {
+            HasBooking = true,
+            booking.RouteId,
+            RidingToday = RidesOnDay(booking.Days, dayName),
+            Skipped = skipped,
+            Boarded = record != null,
+            BoardedAt = record?.CreatedAt,
+            Alighted = record?.AlightedAt != null,
+            AlightedAt = record?.AlightedAt
+        };
+    }
+
+    // GET api/rides/today: where am I in today's ride?
+    [HttpGet("today")]
+    public async Task<IActionResult> Today() => Ok(await BuildTodayAsync(await MyBooking()));
+
+    // POST api/rides/board: "I've boarded"
+    [HttpPost("board")]
+    public async Task<IActionResult> Board()
+    {
+        var booking = await MyBooking();
+        if (booking == null) return BadRequest("You don't have an active booking.");
+
+        var now = DateTime.UtcNow;
+        var today = DateOnly.FromDateTime(now);
+        var dayName = today.ToString("ddd", CultureInfo.InvariantCulture);
+
+        if (!RidesOnDay(booking.Days, dayName)) return BadRequest("You aren't booked on this route today.");
+
+        if (await _context.SkippedRides.AnyAsync(s => s.BookingId == booking.Id && s.RideDate == today))
+            return BadRequest("You marked today as skipped. Undo the skip first if you are riding.");
+
+        // Boarding opens one hour before departure, so nobody ticks it hours early
+        if (booking.Route != null && now.TimeOfDay < booking.Route.ScheduleTime.TimeOfDay - TimeSpan.FromHours(1))
+            return BadRequest("Boarding opens one hour before departure.");
+
+        var exists = await _context.Boardings.AnyAsync(x => x.BookingId == booking.Id && x.RideDate == today);
+        if (!exists)
+        {
+            // Save a copy of the details, so the admin's history survives later changes or deletions
+            var riderName = await _context.Users.Where(u => u.Id == CurrentUserId).Select(u => u.Name).FirstOrDefaultAsync();
+            var stopNames = await _context.Stops
+                .Where(s => s.Id == booking.BoardingStopId || s.Id == booking.DropOffStopId)
+                .ToDictionaryAsync(s => s.Id, s => s.Name);
+
+            _context.Boardings.Add(new Boarding
+            {
+                BookingId = booking.Id,
+                RideDate = today,
+                DriverId = null,
+                Source = "Rider",
+                RouteId = booking.RouteId,
+                RiderName = riderName,
+                RouteName = booking.Route != null ? $"{booking.Route.Origin} to {booking.Route.Destination}" : null,
+                BoardingStopName = stopNames.GetValueOrDefault(booking.BoardingStopId),
+                DropOffStopName = stopNames.GetValueOrDefault(booking.DropOffStopId)
+            });
+            await _context.SaveChangesAsync();
+        }
+
+        return Ok(await BuildTodayAsync(booking));
+    }
+
+    // POST api/rides/alight: "I've got off"
+    [HttpPost("alight")]
+    public async Task<IActionResult> Alight()
+    {
+        var booking = await MyBooking();
+        if (booking == null) return BadRequest("You don't have an active booking.");
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var record = await _context.Boardings.FirstOrDefaultAsync(x => x.BookingId == booking.Id && x.RideDate == today);
+        if (record == null) return BadRequest("Mark yourself as boarded first.");
+
+        if (record.AlightedAt == null)
+        {
+            record.AlightedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+        }
+
+        return Ok(await BuildTodayAsync(booking));
+    }
+
+    // DELETE api/rides/board: undo a mistaken "boarded" (also clears "got off")
+    [HttpDelete("board")]
+    public async Task<IActionResult> UndoBoard()
+    {
+        var booking = await MyBooking();
+        if (booking == null) return BadRequest("You don't have an active booking.");
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var record = await _context.Boardings.FirstOrDefaultAsync(x => x.BookingId == booking.Id && x.RideDate == today);
+        if (record != null && record.AlightedAt != null)
+            return BadRequest("Your trip is complete and has been saved, so it can't be undone.");
+
+        if (record != null)
+        {
+            _context.Boardings.Remove(record);
+            await _context.SaveChangesAsync();
+        }
+
+        return Ok(await BuildTodayAsync(booking));
+    }
 }

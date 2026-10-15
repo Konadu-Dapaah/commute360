@@ -14,6 +14,7 @@
   <!-- Configuration & Authentication scripts loaded early in HEAD -->
   <script src="config.js"></script>
   <script src="auth.js"></script>
+  <script src="livemap.js"></script>
 </head>
 <body>
   <div class="scene" aria-hidden="true">
@@ -46,6 +47,7 @@
       <button type="button" class="tab" data-tab="users">Users</button>
       <button type="button" class="tab" data-tab="reports">Reports</button>
       <button type="button" class="tab" data-tab="announce">Announcements</button>
+      <button type="button" class="tab" data-tab="headcount">Headcount</button>
       <a class="tab" id="manageLink" href="/admin-routes.html">Manage routes ↗</a>
     </nav>
 
@@ -63,7 +65,7 @@
           <table class="data">
             <thead>
               <tr>
-                <th>Route</th><th>Departs</th><th>Seats booked</th>
+                <th>Route</th><th>Departs</th><th>Seats booked</th><th>On the bus now</th>
                 <th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Actions</th>
               </tr>
             </thead>
@@ -104,6 +106,10 @@
     <section id="tab-live" hidden>
       <div class="live-layout">
         <div class="panel">
+          <div class="form-row" style="margin-bottom:8px">
+            <label for="liveRoute" class="muted">Route</label>
+            <select class="input" id="liveRoute"></select>
+          </div>
           <div class="muted" id="liveStatus">Loading map…</div>
           <div id="map" class="map"></div>
         </div>
@@ -121,7 +127,7 @@
         <p class="muted">New accounts start as Staff. Promote someone to Driver or Admin here.</p>
         <div class="scroll">
           <table class="data">
-            <thead><tr><th>Name</th><th>Email</th><th>Role</th></tr></thead>
+            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr></thead>
             <tbody id="usersBody"></tbody>
           </table>
         </div>
@@ -157,6 +163,32 @@
     </section>
 
     <!-- ===== Announcements ===== -->
+    <section id="tab-headcount" class="stack" hidden>
+      <div class="panel">
+        <h2>Headcount: who boarded and got off</h2>
+        <div class="form-row" style="margin-bottom:12px">
+          <input class="input" type="date" id="hcDate" />
+          <select class="input" id="hcRoute"></select>
+          <button type="button" class="mini-btn" id="hcShow">Show</button>
+          <button type="button" class="mini-btn" id="hcCsv">Download CSV</button>
+        </div>
+        <p class="muted" id="hcSummary"></p>
+        <div class="scroll">
+          <table class="data">
+            <thead>
+              <tr>
+                <th>Rider</th><th>Route</th><th>Boarded at</th><th>Got off at</th>
+                <th>Minutes on bus</th><th>Boarding stop</th><th>Drop-off stop</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="hcBody"></tbody>
+          </table>
+        </div>
+        <p class="msg" id="hcMsg" role="status"></p>
+        <p class="muted">Riders mark themselves as boarded and got off. Each trip is saved with the details from that day, even if the account or route is deleted later.</p>
+      </div>
+    </section>
+
     <section id="tab-announce" class="stack" hidden>
       <div class="panel">
         <h2>Send an announcement</h2>
@@ -231,13 +263,14 @@
       activeTab = name;
       document.querySelectorAll(".tab[data-tab]").forEach((b) =>
         b.classList.toggle("is-active", b.dataset.tab === name));
-      ["overview", "routes", "live", "users", "reports", "announce"].forEach((t) => {
+      ["overview", "routes", "live", "users", "reports", "announce", "headcount"].forEach((t) => {
         $("tab-" + t).hidden = t !== name;
       });
       if (name === "live") initLive();
       if (name === "users") loadUsers();
       if (name === "reports") loadReport();
       if (name === "announce") loadAnnouncements();
+      if (name === "headcount") loadHeadcount();
     }
 
     document.querySelectorAll(".tab[data-tab]").forEach((btn) =>
@@ -265,6 +298,7 @@
           h("td", { text: `${r.origin} → ${r.destination}` }),
           h("td", { text: timeOf(r.scheduleTime) }),
           h("td", {}, h("div", { text: `${r.riders} / ${r.capacity}` }), bar),
+          h("td", { text: `${r.onBoardNow ?? 0} (${r.boardedToday ?? 0} boarded today)` }),
           ...DAYS.map((d) => h("td", { text: String(r.days[d] ?? 0) })),
           h("td", {}, h("button", { class: "mini-btn", type: "button", text: "View riders", onclick: () => showRiders(r) }))
         ));
@@ -462,7 +496,23 @@
             }
           });
 
-          body.append(h("tr", {}, h("td", { text: u.name }), h("td", { text: u.email }), h("td", {}, select)));
+          const del = h("button", {
+            class: "mini-btn", type: "button", text: "Delete",
+            onclick: async () => {
+              if (!confirm(`Delete ${u.name} (${u.email})?\n\nTheir bookings and waitlist entries will be removed. This cannot be undone.`)) return;
+              const msg = $("usersMsg");
+              try {
+                const r = await Auth.api(`/api/admin/users/${u.id}`, { method: "DELETE" });
+                if (r.ok) { msg.className = "msg is-success"; msg.textContent = `${u.name} was deleted.`; loadUsers(); }
+                else { msg.className = "msg is-error"; msg.textContent = await readError(r); }
+              } catch (err) {
+                if (err.message !== "Unauthorized") { msg.className = "msg is-error"; msg.textContent = "Could not reach the server."; }
+              }
+            }
+          });
+          if (u.id === me.id) { del.disabled = true; del.title = "You can't delete your own account"; }
+
+          body.append(h("tr", {}, h("td", { text: u.name }), h("td", { text: u.email }), h("td", {}, select), h("td", {}, del)));
         });
       } catch (err) {
         if (err.message !== "Unauthorized") console.error(err);
@@ -631,6 +681,244 @@
         }
       }
     })();
+  </script>
+
+  <script>
+
+
+// ---------- Live tracking with route selection and road-following lines ----------
+// This replaces the earlier initLive in admin-dashboard.html (a later function declaration wins).
+let liveCtl = null;
+let liveStarted = false;
+
+async function drawLiveRoutes() {
+  const choice = $("liveRoute").value;
+  const list = choice === "all" ? routes : routes.filter((r) => String(r.id) === choice);
+  const result = await liveCtl.showRoutes(list, { fit: true });
+  $("liveStatus").dataset.road = result.road ? "1" : "0";
+}
+
+async function pollLiveBuses() {
+  try {
+    const res = await Auth.api("/api/summary/live");
+    if (!res.ok) return;
+    const all = await res.json();
+
+    const choice = $("liveRoute").value;
+    const shown = choice === "all" ? all : all.filter((b) => String(b.routeId) === choice);
+
+    const list = $("liveList");
+    list.innerHTML = "";
+    const seen = new Set();
+
+    shown.forEach((b) => {
+      const key = String(b.routeId);
+      seen.add(key);
+      const age = Date.now() - new Date(b.updatedAt).getTime();
+      const stale = age > STALE_MS;
+
+      liveCtl.setBus(key, { lat: b.latitude, lng: b.longitude }, { stale, title: `${b.origin} \u2192 ${b.destination}` });
+
+      const speed = b.speedKmh != null ? ` \u00B7 ${Math.round(b.speedKmh)} km/h` : "";
+      list.append(h("li", {},
+        h("div", {}, h("span", { class: "dot " + (stale ? "is-stale" : "is-live") }), `${b.origin} \u2192 ${b.destination}`),
+        h("div", { class: "muted", text: (stale ? `Last seen ${Math.round(age / 60000)} min ago` : "Live" + speed) }),
+        h("div", { class: "muted", text: `${b.onBoard ?? 0} on board` })
+      ));
+    });
+
+    liveCtl.busKeys().forEach((k) => { if (!seen.has(k)) liveCtl.removeBus(k); });
+
+    const liveNow = all.filter((b) => Date.now() - new Date(b.updatedAt).getTime() <= STALE_MS).length;
+    $("statBuses").textContent = liveNow;
+
+    const road = $("liveStatus").dataset.road === "0"
+      ? " Road directions are unavailable right now, so lines join the stops directly." : "";
+    $("liveStatus").textContent = (shown.length
+      ? `${shown.length} bus${shown.length > 1 ? "es" : ""} reporting.`
+      : "No buses on the road for this selection.") + road;
+  } catch (err) {
+    if (err.message !== "Unauthorized") console.error(err);
+  }
+}
+
+async function initLive() {
+  if (liveStarted) return;
+  liveStarted = true;
+
+  try {
+    liveCtl = await LiveMap.create("map");
+  } catch (err) {
+    $("liveStatus").textContent = err.message;
+    liveStarted = false;
+    return;
+  }
+
+  const select = $("liveRoute");
+  select.innerHTML = "";
+  select.append(
+    h("option", { value: "all", text: "All routes" }),
+    ...routes.map((r) => h("option", { value: String(r.id), text: `${r.origin} \u2192 ${r.destination}` }))
+  );
+  select.addEventListener("change", async () => { liveCtl.clearBuses(); await drawLiveRoutes(); pollLiveBuses(); });
+
+  await drawLiveRoutes();
+  await pollLiveBuses();
+  setInterval(() => { if (!document.hidden && activeTab === "live") pollLiveBuses(); }, POLL_MS);
+}
+
+  </script>
+
+  <script>
+    // ---------- Headcount: who boarded and got off ----------
+    let hcRows = [];
+
+    const hcTime = (v) => (v ? new Date(v).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "\u2014");
+
+    async function loadHeadcount() {
+      const dateInput = $("hcDate");
+      if (!dateInput.value) dateInput.value = new Date().toISOString().slice(0, 10);
+
+      const select = $("hcRoute");
+      if (select.options.length !== routes.length + 1) {
+        select.innerHTML = "";
+        select.append(h("option", { value: "", text: "All routes" }),
+          ...routes.map((r) => h("option", { value: String(r.id), text: `${r.origin} \u2192 ${r.destination}` })));
+      }
+
+      const msg = $("hcMsg");
+      msg.className = "msg";
+      msg.textContent = "Loading\u2026";
+
+      try {
+        const query = `date=${dateInput.value}` + (select.value ? `&routeId=${select.value}` : "");
+        const res = await Auth.api(`/api/headcount?${query}`);
+        if (!res.ok) { msg.className = "msg is-error"; msg.textContent = await readError(res); return; }
+
+        const data = await res.json();
+        hcRows = data.rows;
+        const s = data.summary;
+
+        $("hcSummary").textContent =
+          `${s.boarded} boarded \u00B7 ${s.completed} trips completed \u00B7 ${s.onBus} still on the bus` +
+          (s.notBoarded || s.skipped ? ` \u00B7 ${s.notBoarded} not boarded yet \u00B7 ${s.skipped} skipped` : "");
+
+        const body = $("hcBody");
+        body.innerHTML = "";
+        if (hcRows.length === 0) {
+          body.append(h("tr", {}, h("td", { colspan: "8", class: "muted", text: "No trips recorded for this day." })));
+        }
+        hcRows.forEach((r) => body.append(h("tr", {},
+          h("td", { text: r.rider }),
+          h("td", { text: r.route }),
+          h("td", { text: hcTime(r.boardedAt) }),
+          h("td", { text: hcTime(r.alightedAt) }),
+          h("td", { text: r.minutesOnBus != null ? String(r.minutesOnBus) : "\u2014" }),
+          h("td", { text: r.boardingStop }),
+          h("td", { text: r.dropOffStop }),
+          h("td", { text: r.status })
+        )));
+        msg.textContent = "";
+      } catch (err) {
+        if (err.message !== "Unauthorized") { msg.className = "msg is-error"; msg.textContent = "Could not load the headcount."; }
+      }
+    }
+
+    function hcDownload() {
+      // A value starting with = + - or @ could run as a formula in Excel, so it is prefixed with an apostrophe
+      const esc = (v) => {
+        let s = String(v ?? "");
+        if (/^[=+\-@]/.test(s)) s = "'" + s;
+        return '"' + s.replace(/"/g, '""') + '"';
+      };
+      const when = (v) => (v ? new Date(v).toLocaleString() : "");
+
+      const header = ["Date", "Rider", "Route", "Boarded at", "Got off at", "Minutes on bus", "Boarding stop", "Drop-off stop", "Status"];
+      const lines = [header.map(esc).join(",")].concat(hcRows.map((r) =>
+        [$("hcDate").value, r.rider, r.route, when(r.boardedAt), when(r.alightedAt), r.minutesOnBus ?? "", r.boardingStop, r.dropOffStop, r.status]
+          .map(esc).join(",")));
+
+      const blob = new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `commute360-headcount-${$("hcDate").value}.csv`;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    $("hcShow").addEventListener("click", loadHeadcount);
+    $("hcDate").addEventListener("change", loadHeadcount);
+    $("hcRoute").addEventListener("change", loadHeadcount);
+    $("hcCsv").addEventListener("click", hcDownload);
+  </script>
+
+  <script>
+    // ---------- Announcements (admin) ----------
+    function fillAnnouncementRoutes() {
+      const select = $("annRoute");
+      if (select.options.length === routes.length + 1) return;
+      select.innerHTML = "";
+      select.append(h("option", { value: "", text: "Everyone" }),
+        ...routes.map((r) => h("option", { value: String(r.id), text: `Riders on ${r.origin} \u2192 ${r.destination}` })));
+    }
+
+    async function loadAnnouncements() {
+      fillAnnouncementRoutes();
+      const body = $("annBody");
+      body.innerHTML = "";
+
+      try {
+        const res = await Auth.api("/api/announcements/sent");
+        if (!res.ok) return;
+        const items = await res.json();
+
+        if (items.length === 0) {
+          body.append(h("tr", {}, h("td", { colspan: "4", class: "muted", text: "Nothing sent yet." })));
+          return;
+        }
+
+        items.forEach((a) => body.append(h("tr", {},
+          h("td", { text: a.route ?? "Everyone" }),
+          h("td", { text: a.message }),
+          h("td", { text: new Date(a.createdAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) }),
+          h("td", {}, h("button", {
+            class: "mini-btn", type: "button", text: "Delete",
+            onclick: async () => { await Auth.api(`/api/announcements/${a.id}`, { method: "DELETE" }); loadAnnouncements(); }
+          }))
+        )));
+      } catch (err) {
+        if (err.message !== "Unauthorized") console.error(err);
+      }
+    }
+
+    $("annSend").addEventListener("click", async () => {
+      const msg = $("annMsg");
+      const message = $("annText").value.trim();
+      const routeId = $("annRoute").value ? Number($("annRoute").value) : null;
+
+      if (message.length < 3) { msg.className = "msg is-error"; msg.textContent = "Write a message (at least 3 characters)."; return; }
+
+      $("annSend").disabled = true;
+      try {
+        const res = await Auth.api("/api/announcements", { method: "POST", body: JSON.stringify({ message, routeId }) });
+        if (res.ok) {
+          msg.className = "msg is-success";
+          msg.textContent = "Announcement sent. Riders see it on their dashboard.";
+          $("annText").value = "";
+          loadAnnouncements();
+        } else {
+          msg.className = "msg is-error";
+          msg.textContent = await readError(res);
+        }
+      } catch (err) {
+        if (err.message !== "Unauthorized") { msg.className = "msg is-error"; msg.textContent = "Could not reach the server."; }
+      } finally {
+        $("annSend").disabled = false;
+      }
+    });
   </script>
 </body>
 </html>

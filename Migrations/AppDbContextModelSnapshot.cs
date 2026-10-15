@@ -64,17 +64,39 @@ namespace Commute360.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("BookingId")
+                    b.Property<DateTime?>("AlightedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("BoardingStopName")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("BookingId")
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int>("DriverId")
+                    b.Property<int?>("DriverId")
                         .HasColumnType("integer");
+
+                    b.Property<string>("DropOffStopName")
+                        .HasColumnType("text");
 
                     b.Property<DateOnly>("RideDate")
                         .HasColumnType("date");
+
+                    b.Property<string>("RiderName")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("RouteId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RouteName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
@@ -469,14 +491,12 @@ namespace Commute360.Migrations
                     b.HasOne("Commute360.Models.Booking", "Booking")
                         .WithMany()
                         .HasForeignKey("BookingId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("Commute360.Models.User", "Driver")
                         .WithMany()
                         .HasForeignKey("DriverId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Booking");
 

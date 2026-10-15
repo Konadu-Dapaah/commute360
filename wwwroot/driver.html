@@ -102,13 +102,20 @@
       </section>
 
       <section class="panel" style="grid-column: 1 / -1">
+        <h2>Live map</h2>
+        <p class="muted">Shows the route selected above along the roads, and where the bus is now.</p>
+        <div id="driverMap" style="width:100%;height:50vh;min-height:320px;border-radius:12px;background:#0f1d33"></div>
+        <p class="muted" id="driverMapNote" hidden></p>
+      </section>
+
+      <section class="panel" style="grid-column: 1 / -1">
         <h2>Route overview</h2>
         <div id="overview" class="muted">Select a route to see riders and stops.</div>
       </section>
 
       <section class="panel" style="grid-column: 1 / -1">
         <h2>Today's boarding list</h2>
-        <p class="muted" id="manifestNote">Tick each rider as they board. People who skipped today aren't listed.</p>
+        <p class="muted" id="manifestNote">Riders mark themselves as boarded and got off on their own phones. This list refreshes every 30 seconds. People who skipped today aren't listed.</p>
         <div id="manifest"></div>
         <p class="msg" id="manifestMsg" role="status" aria-live="polite"></p>
       </section>
@@ -116,6 +123,7 @@
   </div>
 
   <script src="auth.js"></script>
+  <script src="livemap.js"></script>
   <script>
     const token = localStorage.getItem("token") || localStorage.getItem("authToken");
     if (!token) window.location.href = "/login.html";
@@ -327,12 +335,7 @@
         });
 
         if (res.ok) {
-          let smsNote = "";
-          try {
-            const sent = (await res.json()).smsSent;
-            if (sent > 0) smsNote = ` SMS sent to ${sent} rider${sent === 1 ? "" : "s"}.`;
-          } catch { /* no body, no note */ }
-          setMsg(status, "Alert sent to riders on this route." + smsNote, "success");
+          setMsg(status, "Alert sent to riders on this route.", "success");
           const li = document.createElement("li");
           li.textContent = `${new Date().toLocaleTimeString()} · ${$("alertType").value}: ${message}`;
           $("sentList").prepend(li);
@@ -449,38 +452,25 @@
         }
         box.className = "";
 
-        const boardedCount = data.riders.filter((r) => r.boarded).length;
         const summaryLine = document.createElement("p");
         summaryLine.style.fontWeight = "700";
-        summaryLine.textContent = `${boardedCount} of ${data.riders.length} boarded` +
+        summaryLine.textContent = `${data.onBoard} on the bus · ${data.gotOff} got off · ${data.expected} expected` +
           (data.skipped ? ` · ${data.skipped} skipping today` : "");
         box.append(summaryLine);
 
         data.riders.forEach((r) => {
-          const row = document.createElement("label");
-          row.style.cssText = "display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid rgba(255,255,255,.1);cursor:pointer";
+          const row = document.createElement("div");
+          row.style.cssText = "display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid rgba(255,255,255,.1)";
 
-          const check = document.createElement("input");
-          check.type = "checkbox";
-          check.checked = r.boarded;
-          check.style.cssText = "width:22px;height:22px";
-          check.addEventListener("change", async () => {
-            try {
-              const res2 = await api("/api/driver/boardings", {
-                method: "POST",
-                body: JSON.stringify({ bookingId: r.bookingId, boarded: check.checked })
-              });
-              if (!res2.ok) { check.checked = !check.checked; setMsg($("manifestMsg"), await readError(res2), "error"); }
-              else setMsg($("manifestMsg"), "");
-            } catch (err) {
-              check.checked = !check.checked;
-              if (err.message !== "Unauthorized") setMsg($("manifestMsg"), "Could not reach the server.", "error");
-            }
-          });
+          const dot = document.createElement("span");
+          dot.style.cssText = "width:12px;height:12px;border-radius:50%;flex:none;background:" +
+            (r.alighted ? "#8b97ad" : r.boarded ? "#34d399" : "#fbbf24");
 
           const text = document.createElement("span");
-          text.textContent = `${r.name} · ${r.boardingStop} → ${r.dropOffStop}`;
-          row.append(check, text);
+          text.textContent = `${r.name} · ${r.boardingStop} → ${r.dropOffStop}` +
+            (r.alighted ? "  (trip complete)" : r.boarded ? "  (on the bus)" : "  (waiting)");
+
+          row.append(dot, text);
           box.append(row);
         });
       } catch (err) {
@@ -518,11 +508,59 @@
       }
     });
 
-    $("routeSelect").addEventListener("change", () => { renderOverview(); loadManifest(); });
+    // ---------- Live map (follows the roads) ----------
+    let driverMap = null;
+    let driverMapRoute = 0;
+
+    async function drawDriverMap() {
+      const rid = parseInt($("routeSelect").value, 10);
+      if (!rid) return;
+      const note = $("driverMapNote");
+      try {
+        if (!driverMap) driverMap = await LiveMap.create("driverMap");
+        const res = await api("/api/routes");
+        if (!res.ok) return;
+        const route = (await res.json()).find((r) => r.id === rid);
+        if (!route) return;
+
+        driverMapRoute = rid;
+        driverMap.clearBuses();
+        const result = await driverMap.showRoutes([route]);
+        note.hidden = result.road;
+        note.textContent = "Road directions are unavailable right now, so the line joins the stops directly.";
+        pollDriverBus();
+      } catch (err) {
+        if (err.message !== "Unauthorized") { note.hidden = false; note.textContent = err.message; }
+      }
+    }
+
+    async function pollDriverBus() {
+      if (!driverMap || !driverMapRoute) return;
+
+      // On a trip: use the phone's own position. Otherwise: the last position the server has.
+      if (lastPos && routeId === driverMapRoute) {
+        driverMap.setBus("bus", { lat: lastPos.coords.latitude, lng: lastPos.coords.longitude }, { title: "You" });
+        return;
+      }
+      try {
+        const res = await api(`/api/tracking/routes/${driverMapRoute}/location`);
+        if (res.status === 200) {
+          const d = await res.json();
+          const stale = Date.now() - new Date(d.updatedAt).getTime() > 45000;
+          driverMap.setBus("bus", { lat: d.latitude, lng: d.longitude }, { stale });
+        } else if (res.status === 204) {
+          driverMap.removeBus("bus");
+        }
+      } catch { /* try again on the next poll */ }
+    }
+
+    setInterval(() => { if (!document.hidden) pollDriverBus(); }, 4000);
+
+    $("routeSelect").addEventListener("change", () => { renderOverview(); loadManifest(); drawDriverMap(); });
     setInterval(() => { if (!document.hidden) loadManifest(); }, 30000);
 
     Auth.requireRole(["Driver"])
-      .then(async () => { await loadRoutes(); await loadOverview(); await loadManifest(); })
+      .then(async () => { await loadRoutes(); await loadOverview(); await loadManifest(); await drawDriverMap(); })
       .catch((err) => { if (!["Unauthorized", "Wrong role"].includes(err.message)) console.error(err); });
   </script>
 </body>
